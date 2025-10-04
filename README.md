@@ -24,7 +24,8 @@ Submit a new incident report.
     "longitude": 21.0122,
     "description": "Road blocked by fallen tree",
     "category": "infrastructure",
-    "username": "janedoe"
+    "username": "janedoe",
+    "approved": false
   }
   ```
 - **Success Response** `201 Created`

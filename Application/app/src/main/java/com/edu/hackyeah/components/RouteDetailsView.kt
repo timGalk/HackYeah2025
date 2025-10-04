@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -29,15 +30,25 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.edu.hackyeah.location.DestinationPoint
+import com.edu.hackyeah.location.LocationHelper
 import com.edu.hackyeah.location.LocationPoint
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import java.time.Duration
 import java.time.format.DateTimeFormatter
 
@@ -48,6 +59,91 @@ fun RouteDetailsView(
     onBackClick: () -> Unit
 ) {
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val context = LocalContext.current
+    val locationHelper = remember { LocationHelper(context) }
+
+    var locationPoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
+    var routePoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Fetch geolocation for all stops and build route
+    LaunchedEffect(destinationPoints) {
+        isLoading = true
+
+        // Geocode all destination points in parallel
+        coroutineScope {
+            val geocodedPoints = destinationPoints.map { point ->
+                async {
+                    locationHelper.getCoordinatesFromAddress(point.name)
+                }
+            }.awaitAll().filterNotNull()
+
+            locationPoints = geocodedPoints
+
+            // Build route through all points
+            if (geocodedPoints.size >= 2) {
+                val allRoutePoints = mutableListOf<LocationPoint>()
+
+                // Get route segments between consecutive stops
+                for (i in 0 until geocodedPoints.size - 1) {
+                    val start = geocodedPoints[i]
+                    val end = geocodedPoints[i + 1]
+
+                    // Try OSRM first, but don't block on it
+                    val segmentPoints = try {
+                        locationHelper.getRoutePoints(
+                            startPoint = start,
+                            endPoint = end,
+                            profile = "driving"
+                        )
+                    } catch (e: Exception) {
+                        println("OSRM failed for segment $i: ${e.message}")
+                        null
+                    }
+
+                    if (segmentPoints != null && segmentPoints.isNotEmpty()) {
+                        // Add segment points, avoiding duplicates at connection points
+                        if (allRoutePoints.isEmpty()) {
+                            allRoutePoints.addAll(segmentPoints)
+                        } else {
+                            // Skip first point of segment as it's the same as last point of previous segment
+                            allRoutePoints.addAll(segmentPoints.drop(1))
+                        }
+                    } else {
+                        // Fallback: create simple line with interpolated points for smoother rendering
+                        println("Using fallback for segment $i")
+                        if (allRoutePoints.isEmpty()) {
+                            allRoutePoints.add(start)
+                        }
+
+                        // Add some intermediate points for smoother line (divide segment into 3 parts)
+                        val latDiff = (end.latitude - start.latitude) / 3
+                        val lonDiff = (end.longitude - start.longitude) / 3
+
+                        allRoutePoints.add(
+                            LocationPoint(
+                                start.latitude + latDiff,
+                                start.longitude + lonDiff,
+                                ""
+                            )
+                        )
+                        allRoutePoints.add(
+                            LocationPoint(
+                                start.latitude + 2 * latDiff,
+                                start.longitude + 2 * lonDiff,
+                                ""
+                            )
+                        )
+                        allRoutePoints.add(end)
+                    }
+                }
+
+                routePoints = allRoutePoints
+            }
+
+            isLoading = false
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -95,30 +191,25 @@ fun RouteDetailsView(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    // Convert DestinationPoints to LocationPoints for map
-                    val mapPoints = destinationPoints.mapIndexed { index, point ->
-                        // Static coordinates for Krakow locations (you'll replace these with actual geocoding)
-                        when (point.name) {
-                            "Kraków Główny" -> LocationPoint(50.0677, 19.9445, point.name)
-                            "Rynek Główny" -> LocationPoint(50.0619, 19.9368, point.name)
-                            "Wawel" -> LocationPoint(50.0544, 19.9356, point.name)
-                            "Kazimierz" -> LocationPoint(50.0520, 19.9466, point.name)
-                            "Nowa Huta" -> LocationPoint(50.0715, 20.0350, point.name)
-                            "Podgórze" -> LocationPoint(50.0368, 19.9495, point.name)
-                            "Bronowice" -> LocationPoint(50.0847, 19.8992, point.name)
-                            "Krowodrza" -> LocationPoint(50.0790, 19.9232, point.name)
-                            else -> LocationPoint(50.0619, 19.9368, point.name)
-                        }
+                    if (isLoading) {
+                        CircularProgressIndicator(
+                            color = Color(0xFF1976D2)
+                        )
+                    } else if (locationPoints.isNotEmpty()) {
+                        Map(
+                            modifier = Modifier.fillMaxSize(),
+                            initialZoom = 12.0,
+                            enableMyLocation = false,
+                            userMarkers = locationPoints,
+                            routePoints = routePoints,
+                            onMapReady = { }
+                        )
+                    } else {
+                        Text(
+                            text = "Nie udało się załadować mapy",
+                            color = Color(0xFF757575)
+                        )
                     }
-
-                    Map(
-                        modifier = Modifier.fillMaxSize(),
-                        initialZoom = 12.0,
-                        enableMyLocation = false,
-                        userMarkers = mapPoints,
-                        routePoints = mapPoints,
-                        onMapReady = { }
-                    )
                 }
             }
 
@@ -315,4 +406,3 @@ fun StopItem(
         }
     }
 }
-

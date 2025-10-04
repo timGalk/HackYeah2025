@@ -46,7 +46,6 @@ import androidx.compose.ui.unit.sp
 import com.edu.hackyeah.location.DestinationPoint
 import kotlinx.coroutines.launch
 import com.edu.hackyeah.location.LocationHelper
-import com.edu.hackyeah.location.LocationPoint
 import java.time.Instant
 
 
@@ -69,9 +68,10 @@ fun Dashboard() {
     }
     var fromLocation by remember { mutableStateOf("") }
     var toLocation by remember { mutableStateOf("") }
-    var userPoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
-    var routePoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
     var showRouteTile by remember { mutableStateOf(false) }
+    var showRouteDetails by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSearching by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val locationHelper = remember { LocationHelper(context) }
     val coroutineScope = rememberCoroutineScope()
@@ -88,6 +88,17 @@ fun Dashboard() {
                 }
             }
         }
+    }
+
+    // Show route details view when clicked
+    if (showRouteDetails) {
+        RouteDetailsView(
+            destinationPoints = destinationPoints,
+            onBackClick = {
+                showRouteDetails = false
+            }
+        )
+        return
     }
 
     Scaffold(
@@ -129,9 +140,16 @@ fun Dashboard() {
                     OutlinedTextField(
                         value = fromLocation,
                         onValueChange = { fromLocation = it },
-                        placeholder = { Text("From where?") },
+                        placeholder = { Text("Skąd?") },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
+                            Icon(
+                                Icons.Default.Place,
+                                contentDescription = null,
+                                tint = Color(0xFF4CAF50)
+                            )
+                        },
+                        trailingIcon = {
                             IconButton(onClick = {
                                 permissionLauncher.launch(
                                     arrayOf(
@@ -142,8 +160,8 @@ fun Dashboard() {
                             }) {
                                 Icon(
                                     Icons.Default.Place,
-                                    contentDescription = "Get current location",
-                                    tint = Color(0xFF4CAF50)
+                                    contentDescription = "Pobierz aktualną lokalizację",
+                                    tint = Color(0xFF1976D2)
                                 )
                             }
                         },
@@ -158,7 +176,7 @@ fun Dashboard() {
                     OutlinedTextField(
                         value = toLocation,
                         onValueChange = { toLocation = it },
-                        placeholder = { Text("Where to?") },
+                        placeholder = { Text("Dokąd?") },
                         modifier = Modifier.fillMaxWidth(),
                         leadingIcon = {
                             Icon(
@@ -177,39 +195,48 @@ fun Dashboard() {
                     // Search Button
                     Button(
                         onClick = {
+                            errorMessage = null
+                            isSearching = true
+
                             coroutineScope.launch {
-                                // Geocode from location
-                                val startPoint = locationHelper.getCoordinatesFromAddress(fromLocation)
-
-                                // Geocode to location
-                                val endPoint = locationHelper.getCoordinatesFromAddress(toLocation)
-
-                                if (startPoint != null && endPoint != null) {
-                                    // Store user-specified points (only A and B)
-                                    userPoints = listOf(startPoint, endPoint)
-
-                                    // Get the actual route with all waypoints for drawing the line
-                                    val apiRoutePoints = locationHelper.getRoutePoints(
-                                        startPoint = startPoint,
-                                        endPoint = endPoint,
-                                        profile = "driving" // You can change to "walking" or "cycling"
-                                    )
-
-                                    if (apiRoutePoints != null && apiRoutePoints.isNotEmpty()) {
-                                        // Use the detailed route points for the line
-                                        routePoints = apiRoutePoints
-                                        println("Found route with ${apiRoutePoints.size} points")
-                                    } else {
-                                        // Fallback to just start and end points if routing fails
-                                        routePoints = listOf(startPoint, endPoint)
-                                        println("Using direct route with 2 points")
+                                try {
+                                    // Validate inputs
+                                    if (fromLocation.length < 3 || toLocation.length < 3) {
+                                        errorMessage = "Proszę wpisać pełne adresy (minimum 3 znaki)"
+                                        isSearching = false
+                                        return@launch
                                     }
-                                } else {
-                                    println("Could not geocode addresses")
-                                }
 
-                                println("Searching from: $fromLocation to: $toLocation")
-                                showRouteTile = true // Show the route tile after search
+                                    println("Searching from: $fromLocation to: $toLocation")
+
+                                    // Geocode from location
+                                    val startPoint = locationHelper.getCoordinatesFromAddress(fromLocation)
+                                    if (startPoint == null) {
+                                        errorMessage = "Nie znaleziono adresu początkowego: $fromLocation"
+                                        isSearching = false
+                                        return@launch
+                                    }
+
+                                    // Geocode to location
+                                    val endPoint = locationHelper.getCoordinatesFromAddress(toLocation)
+                                    if (endPoint == null) {
+                                        errorMessage = "Nie znaleziono adresu docelowego: $toLocation"
+                                        isSearching = false
+                                        return@launch
+                                    }
+
+                                    println("Geocoded: Start=$startPoint, End=$endPoint")
+
+                                    // Show route tile with static data
+                                    showRouteTile = true
+                                    errorMessage = null
+                                    isSearching = false
+
+                                } catch (e: Exception) {
+                                    errorMessage = "Błąd wyszukiwania: ${e.message}"
+                                    isSearching = false
+                                    e.printStackTrace()
+                                }
                             }
                         },
                         modifier = Modifier
@@ -219,7 +246,7 @@ fun Dashboard() {
                             containerColor = Color(0xFF1976D2)
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        enabled = fromLocation.isNotBlank() && toLocation.isNotBlank()
+                        enabled = fromLocation.isNotBlank() && toLocation.isNotBlank() && !isSearching
                     ) {
                         Icon(
                             Icons.Default.Search,
@@ -228,9 +255,19 @@ fun Dashboard() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            "Search",
+                            if (isSearching) "Wyszukiwanie..." else "Wyszukaj",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Medium
+                        )
+                    }
+
+                    // Error message
+                    if (errorMessage != null) {
+                        Text(
+                            text = errorMessage!!,
+                            color = Color(0xFFD32F2F),
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(top = 8.dp)
                         )
                     }
                 }
@@ -241,8 +278,7 @@ fun Dashboard() {
                 RouteTile(
                     destinationPoints = destinationPoints,
                     onClick = {
-                        // TODO: Handle route tile click - will show map with route later
-                        println("Route tile clicked!")
+                        showRouteDetails = true
                     }
                 )
             }

@@ -50,8 +50,15 @@ interface OSRMApi {
 object RoutingService {
     private const val BASE_URL = "https://router.project-osrm.org/"
 
+    private val okHttpClient = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .build()
+
     private val retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
+        .client(okHttpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
@@ -74,12 +81,13 @@ object RoutingService {
                     Pair(cord[1], cord[0]) // Convert [lon, lat] to (lat, lon)
                 }
             } else {
+                println("OSRM API returned code: ${response.code}")
                 null
             }
         } catch (e: Exception) {
+            println("Error getting route: ${e.message}")
             e.printStackTrace()
             null
         }
     }
 }
-

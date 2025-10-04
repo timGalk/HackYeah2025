@@ -29,24 +29,12 @@ class LocationHelper(private val context: Context) {
             if (location != null) {
                 val geocoder = Geocoder(context, Locale.getDefault())
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    geocoder.getFromLocation(
-                        location.latitude,
-                        location.longitude,
-                        1
-                    ) { addresses ->
-                        val address = addresses.firstOrNull()
-                        val result = buildAddressString(address)
-                        continuation.resume(result)
-                    }
-                } else {
-                    @Suppress("DEPRECATION")
-                    val addresses = geocoder.getFromLocation(
-                        location.latitude,
-                        location.longitude,
-                        1
-                    )
-                    val address = addresses?.firstOrNull()
+                geocoder.getFromLocation(
+                    location.latitude,
+                    location.longitude,
+                    1
+                ) { addresses ->
+                    val address = addresses.firstOrNull()
                     val result = buildAddressString(address)
                     continuation.resume(result)
                 }
@@ -66,22 +54,8 @@ class LocationHelper(private val context: Context) {
 
         val geocoder = Geocoder(context, Locale.getDefault())
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            geocoder.getFromLocationName(addressString, 1) { addresses ->
-                val address = addresses.firstOrNull()
-                val result = address?.let {
-                    LocationPoint(
-                        latitude = it.latitude,
-                        longitude = it.longitude,
-                        address = addressString
-                    )
-                }
-                continuation.resume(result)
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            val addresses = geocoder.getFromLocationName(addressString, 1)
-            val address = addresses?.firstOrNull()
+        geocoder.getFromLocationName(addressString, 1) { addresses ->
+            val address = addresses.firstOrNull()
             val result = address?.let {
                 LocationPoint(
                     latitude = it.latitude,

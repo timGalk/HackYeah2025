@@ -16,6 +16,7 @@ dependencies = [
     "networkx>=3.2,<4",
     "gtfs-kit>=6.0,<7",
     "pandas>=2.2,<3",
+    "httpx>=0.28.1",
 ]
 
 [tool.setuptools]

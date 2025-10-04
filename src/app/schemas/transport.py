@@ -106,6 +106,19 @@ class ClosestEdgeUpdateResponse(BaseModel):
     edge: EdgeDetail
 
 
+class ClosestEdgeLookupPayload(BaseModel):
+    """Payload for querying the closest transit edge."""
+
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+
+
+class ClosestEdgeLookupResponse(BaseModel):
+    """Response containing details about the closest transit edge."""
+
+    edge: EdgeDetail
+
+
 class GraphNode(BaseModel):
     """Node representation used in transport graph snapshots."""
 

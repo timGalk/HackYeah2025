@@ -10,6 +10,8 @@ from app.schemas.transport import (
     AvailableModesResponse,
     ClosestEdgeUpdatePayload,
     ClosestEdgeUpdateResponse,
+    ClosestEdgeLookupPayload,
+    ClosestEdgeLookupResponse,
     EdgeDetail,
     EdgeErrorResponse,
     EdgeUpdatePayload,
@@ -367,6 +369,32 @@ async def update_transport_edge(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     return EdgeUpdateResponse(edge=EdgeDetail(**updated))
+
+
+@router.post(
+    "/graphs/nearest/lookup",
+    response_model=ClosestEdgeLookupResponse,
+    responses={
+        status.HTTP_400_BAD_REQUEST: {"model": EdgeErrorResponse},
+        status.HTTP_404_NOT_FOUND: {"model": EdgeErrorResponse},
+    },
+    summary="Find the nearest transit edge",
+)
+async def lookup_nearest_transit_edge(
+    payload: ClosestEdgeLookupPayload,
+    service: TransportGraphService = Depends(get_transport_graph_service),
+) -> ClosestEdgeLookupResponse:
+    """Return information about the closest non-walking/non-bike edge."""
+
+    try:
+        edge = service.get_closest_transit_edge(
+            latitude=payload.latitude,
+            longitude=payload.longitude,
+        )
+    except ValueError as exc:  # pragma: no cover - mapped to HTTP error
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return ClosestEdgeLookupResponse(edge=EdgeDetail(**edge))
 
 
 @router.patch(

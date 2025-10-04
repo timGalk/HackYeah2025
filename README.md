@@ -97,6 +97,31 @@ coordinates with a new weight.
   }
   ```
 
+### POST /api/v1/transport/graphs/nearest/lookup
+Return the closest transit edge (excluding walking and biking) to a point without
+modifying the graph.
+
+- **Request Body**
+  ```json
+  {
+    "latitude": 50.062,
+    "longitude": 19.938
+  }
+  ```
+- **Success Response** `200 OK`
+  ```json
+  {
+    "edge": {
+      "mode": "tram",
+      "source": "stop_a",
+      "target": "stop_b",
+      "key": "trip-123",
+      "weight": 220.0,
+      "distance_to_point_km": 0.03
+    }
+  }
+  ```
+
 ### GET /api/v1/transport/graphs?mode=<mode>
 Return a snapshot of the serialized graphs. When `mode` is omitted the response includes
 all available modes.

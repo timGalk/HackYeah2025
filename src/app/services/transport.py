@@ -148,7 +148,8 @@ class TransportGraphService:
                 raise ValueError(msg)
             edge_payload["weight"] = weight
 
-        graph[source][target][resolved_key] = edge_payload
+        # Update edge attributes using NetworkX's proper method
+        graph.add_edge(source, target, key=resolved_key, **edge_payload)
 
         result = {
             "mode": mode,
@@ -177,6 +178,54 @@ class TransportGraphService:
             msg = "Edge weight must be strictly positive."
             raise ValueError(msg)
 
+        mode, source, target, key, distance_km = self._closest_transit_edge_match(
+            latitude=latitude,
+            longitude=longitude,
+        )
+        updated = self.update_edge(
+            mode=mode,
+            source=source,
+            target=target,
+            key=key,
+            weight=weight,
+            speed_kmh=None,
+            event_context={"distance_to_point_km": distance_km},
+        )
+        return updated
+
+    def get_closest_transit_edge(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+    ) -> dict[str, Any]:
+        """Return metadata describing the closest non-walking/non-bike edge."""
+
+        mode, source, target, key, distance_km = self._closest_transit_edge_match(
+            latitude=latitude,
+            longitude=longitude,
+        )
+        graph = self.get_graph(mode)
+        edge_data = dict(graph[source][target][key])
+        edge_data.update(
+            {
+                "mode": mode,
+                "source": source,
+                "target": target,
+                "key": key,
+                "distance_to_point_km": distance_km,
+            }
+        )
+        return edge_data
+
+    def _closest_transit_edge_match(
+        self,
+        *,
+        latitude: float,
+        longitude: float,
+    ) -> tuple[str, str, str, str | int, float]:
+        """Locate the closest transit edge (excluding walking and bike modes)."""
+
         best_match: tuple[str, str, str, str | int, float] | None = None
 
         for mode, graph in self._graphs.items():
@@ -199,20 +248,10 @@ class TransportGraphService:
                     best_match = (mode, source, target, key, distance_km)
 
         if best_match is None:
-            msg = "No transit edges available to update."
+            msg = "No transit edges available to evaluate."
             raise ValueError(msg)
 
-        mode, source, target, key, distance_km = best_match
-        updated = self.update_edge(
-            mode=mode,
-            source=source,
-            target=target,
-            key=key,
-            weight=weight,
-            speed_kmh=None,
-            event_context={"distance_to_point_km": distance_km},
-        )
-        return updated
+        return best_match
 
     # ---------------------------------------------------------------------
     # Internal helpers

@@ -13,6 +13,9 @@ dependencies = [
     "uvicorn[standard]>=0.27,<0.28",
     "elasticsearch[async]>=8.12,<9",
     "ruff>=0.13.3",
+    "networkx>=3.2,<4",
+    "gtfs-kit>=6.0,<7",
+    "pandas>=2.2,<3",
 ]
 
 [tool.setuptools]

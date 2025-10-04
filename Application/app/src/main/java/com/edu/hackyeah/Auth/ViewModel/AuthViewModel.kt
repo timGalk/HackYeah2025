@@ -27,6 +27,10 @@ class AuthViewModel : ViewModel() {
     ) {
         install(Auth)
         install(Postgrest)
+        install(Auth) {
+            alwaysAutoRefresh = true
+            autoSaveToStorage = true
+        }
     }
 
     private val _authState = MutableLiveData<AuthState>()
@@ -154,11 +158,6 @@ class AuthViewModel : ViewModel() {
             return
         }
 
-        if (role !in listOf("user", "admin")) {
-            _authState.value = AuthState.Error("Invalid role specified")
-            return
-        }
-
         _authState.value = AuthState.Loading
 
         viewModelScope.launch(Dispatchers.IO) {
@@ -168,15 +167,21 @@ class AuthViewModel : ViewModel() {
                     this.password = password
                     data = JsonObject(mapOf("name" to JsonPrimitive(name), "role" to JsonPrimitive(role)))
                 }
-                Log.d(TAG, "User sign-up successful for: $email with role: $role")
+
+
                 val session = supabase.auth.currentSessionOrNull()
-                val userId = session?.user?.id
-                val userEmail = session?.user?.email
-                
-                if (userId != null && userEmail != null) {
-                    ensureUserRecordExists(userId, userEmail, name, role)
-                    fetchUserProfile(userId)
+                val userId = session?.user?.id ?: return@launch
+                val userEmail = session.user?.email ?: email
+
+
+                supabase.auth.updateUser {
+                    data = JsonObject(mapOf("name" to JsonPrimitive(name), "role" to JsonPrimitive(role)))
                 }
+
+                ensureUserRecordExists(userId, userEmail, name, role)
+                val profile = fetchUserProfileAsync(userId)
+                _userProfile.postValue(profile)
+
                 _authState.postValue(AuthState.Authenticated)
             } catch (e: Exception) {
                 Log.e(TAG, "Sign-up failed: ${e.message}")
@@ -184,6 +189,7 @@ class AuthViewModel : ViewModel() {
             }
         }
     }
+
 
     fun signOut() {
         Log.d(TAG, "Signing out user...")

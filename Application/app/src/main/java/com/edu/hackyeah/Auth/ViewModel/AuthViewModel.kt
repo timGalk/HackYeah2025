@@ -32,30 +32,80 @@ class AuthViewModel : ViewModel() {
     private val _authState = MutableLiveData<AuthState>()
     val authState: MutableLiveData<AuthState> = _authState
 
+    private val _userProfile = MutableLiveData<UserRecord?>()
+    val userProfile: MutableLiveData<UserRecord?> = _userProfile
+
     init {
         Log.d(TAG, "AuthViewModel initialized")
         checkAuthState()
     }
 
-    private fun checkAuthState() {
+    fun checkAuthState() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 val session = supabase.auth.currentSessionOrNull()
-                if (session == null) {
-                    Log.d(TAG, "No authenticated user found")
+                val user = session?.user
+
+                if (user == null) {
+                    Log.d(TAG, "No authenticated user")
                     _authState.postValue(AuthState.Unauthenticated)
-                } else {
-                    Log.d(TAG, "Authenticated user found: ${session.user?.email}")
-                    val userId = session.user?.id
-                    val userEmail = session.user?.email
-                    val userName = session.user?.userMetadata?.get("name") as? String
-                    val userRole = session.user?.userMetadata?.get("role") as? String ?: "user"
-                    ensureUserRecordExists(userId, userEmail, userName, userRole)
-                    _authState.postValue(AuthState.Authenticated)
+                    _userProfile.postValue(null)
+                    return@launch
+                }
+
+                val userId = user.id
+                val userEmail = user.email ?: ""
+                val userName = user.userMetadata?.get("name") as? String ?: "User"
+                val userRole = user.userMetadata?.get("role") as? String ?: "user"
+
+                Log.d(TAG, "Authenticated: $userEmail ($userId)")
+
+                // Асинхронно, но гарантированно по порядку
+                ensureUserRecordExists(userId, userEmail, userName, userRole)
+                val profile = fetchUserProfileAsync(userId)
+
+                _userProfile.postValue(profile)
+                _authState.postValue(AuthState.Authenticated)
+            } catch (e: Exception) {
+                Log.e(TAG, "checkAuthState failed: ${e.message}")
+                _authState.postValue(AuthState.Unauthenticated)
+            }
+        }
+    }
+
+
+    private suspend fun fetchUserProfileAsync(userId: String): UserRecord? {
+        return try {
+            val users = supabase.from("users")
+                .select {
+                    filter { eq("id", userId) }
+                }.decodeList<UserRecord>()
+
+            if (users.isNotEmpty()) {
+                Log.d(TAG, "Fetched user profile for: $userId")
+                users.first()
+            } else {
+                Log.w(TAG, "No profile found for: $userId")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch user profile: ${e.message}")
+            null
+        }
+    }
+
+
+
+    fun refreshUserProfile() {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val session = supabase.auth.currentSessionOrNull()
+                val userId = session?.user?.id
+                if (userId != null) {
+                    fetchUserProfile(userId)
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error checking auth state: ${e.message}")
-                _authState.postValue(AuthState.Unauthenticated)
+                Log.e(TAG, "Failed to refresh user profile: ${e.message}")
             }
         }
     }
@@ -76,13 +126,18 @@ class AuthViewModel : ViewModel() {
                     this.email = email
                     this.password = password
                 }
-                Log.d(TAG, "Login successful for $email")
                 val session = supabase.auth.currentSessionOrNull()
                 val userId = session?.user?.id
                 val userEmail = session?.user?.email
                 val userName = session?.user?.userMetadata?.get("name") as? String
                 val userRole = session?.user?.userMetadata?.get("role") as? String ?: "user"
-                ensureUserRecordExists(userId, userEmail, userName, userRole)
+
+                // Only proceed if we have required user data
+                if (userId != null && userEmail != null) {
+                    ensureUserRecordExists(userId, userEmail, userName ?: "User", userRole)
+                    fetchUserProfile(userId)
+                }
+                
                 _authState.postValue(AuthState.Authenticated)
             } catch (e: Exception) {
                 Log.e(TAG, "Login failed: ${e.message}")
@@ -115,7 +170,13 @@ class AuthViewModel : ViewModel() {
                 }
                 Log.d(TAG, "User sign-up successful for: $email with role: $role")
                 val session = supabase.auth.currentSessionOrNull()
-                ensureUserRecordExists(session?.user?.id, session?.user?.email, name, role)
+                val userId = session?.user?.id
+                val userEmail = session?.user?.email
+                
+                if (userId != null && userEmail != null) {
+                    ensureUserRecordExists(userId, userEmail, name, role)
+                    fetchUserProfile(userId)
+                }
                 _authState.postValue(AuthState.Authenticated)
             } catch (e: Exception) {
                 Log.e(TAG, "Sign-up failed: ${e.message}")
@@ -130,6 +191,7 @@ class AuthViewModel : ViewModel() {
             try {
                 supabase.auth.signOut()
                 _authState.postValue(AuthState.Unauthenticated)
+                _userProfile.postValue(null)
             } catch (e: Exception) {
                 Log.e(TAG, "Sign-out failed: ${e.message}")
                 _authState.postValue(AuthState.Error(e.message ?: "Sign-out failed"))
@@ -137,37 +199,65 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    private suspend fun ensureUserRecordExists(userId: String?, email: String?, name: String?, role: String?) {
-        if (userId == null || email == null) {
-            Log.w(TAG, "ensureUserRecordExists called with null userId/email")
+    private suspend fun fetchUserProfile(userId: String?) {
+        if (userId == null) {
+            Log.w(TAG, "fetchUserProfile called with null userId")
+            _userProfile.postValue(null)
             return
         }
 
         try {
-            val existing = supabase.from("users")
+            val users = supabase.from("users")
                 .select {
                     filter {
                         eq("id", userId)
                     }
                 }.decodeList<UserRecord>()
 
+            if (users.isNotEmpty()) {
+                Log.d(TAG, "User profile fetched for: $userId")
+                _userProfile.postValue(users.first())
+            } else {
+                Log.w(TAG, "No user profile found for: $userId")
+                _userProfile.postValue(null)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to fetch user profile: ${e.message}")
+            _userProfile.postValue(null)
+        }
+    }
+
+    private suspend fun ensureUserRecordExists(
+        userId: String,
+        email: String,
+        name: String,
+        role: String
+    ) {
+        try {
+            val existing = supabase.from("users")
+                .select {
+                    filter { eq("id", userId) }
+                }.decodeList<UserRecord>()
+
             if (existing.isEmpty()) {
-                Log.d(TAG, "Creating new user record for: $userId with role: $role")
+                Log.d(TAG, "Creating user record for: $userId")
                 supabase.from("users").insert(
                     UserRecord(
                         id = userId,
                         email = email,
-                        name = name ?: "",
-                        role = role ?: "user"
+                        name = name,
+                        role = role
                     )
                 )
+                Log.d(TAG, "User record created for $email")
             } else {
-                Log.d(TAG, "User record already exists for: $userId")
+                Log.d(TAG, "User record already exists for $userId")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to ensure user record exists: ${e.message}")
         }
     }
+
 }
 
 @Serializable

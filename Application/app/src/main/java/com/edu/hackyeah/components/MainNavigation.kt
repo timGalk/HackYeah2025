@@ -1,6 +1,9 @@
 package com.edu.hackyeah.components
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -16,8 +19,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.edu.hackyeah.Auth.Login.LoginScreen
+import com.edu.hackyeah.Auth.View.RegisterScreen
 
 sealed class NavigationItem(
     val route: String,
@@ -28,12 +34,15 @@ sealed class NavigationItem(
     object Incidents : NavigationItem("incidents", Icons.Default.Warning, "Incydenty")
     object Profile : NavigationItem("profile", Icons.Default.Person, "Profil")
     object Settings : NavigationItem("settings", Icons.Default.Settings, "Ustawienia")
+    object Login : NavigationItem("login", Icons.AutoMirrored.Filled.Login, "Login")
+    object Register : NavigationItem("register", Icons.Filled.Person, "Register")
 }
 
 @Composable
 fun MainNavigation() {
     var selectedItemIndex by remember { mutableIntStateOf(0) }
 
+    // Only show main app screens in bottom bar (not Login/Register)
     val navigationItems = listOf(
         NavigationItem.Home,
         NavigationItem.Incidents,
@@ -70,11 +79,24 @@ fun MainNavigation() {
             }
         }
     ) { paddingValues ->
-        when (selectedItemIndex) {
-            0 -> Dashboard()
-            1 -> IncidentsScreen()
-            2 -> ProfileScreen()
-            3 -> SettingsScreen()
+        Box(modifier = Modifier.padding(paddingValues)) {
+            when (selectedItemIndex) {
+                0 -> Dashboard()
+                1 -> IncidentsScreen()
+                2 -> ProfileScreen(
+                    onNavigateToLogin = { selectedItemIndex = 4 },
+                    onNavigateToRegister = { selectedItemIndex = 5 }
+                )
+                3 -> SettingsScreen()
+                4 -> LoginScreen(
+                    onNavigateToRegister = { selectedItemIndex = 5 },
+                    onLoginSuccess = { selectedItemIndex = 0 }
+                )
+                5 -> RegisterScreen(
+                    onNavigateToLogin = { selectedItemIndex = 4 },
+                    onRegisterSuccess = { selectedItemIndex = 0 }
+                )
+            }
         }
     }
 }

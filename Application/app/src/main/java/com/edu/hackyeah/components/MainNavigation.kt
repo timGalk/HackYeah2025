@@ -72,7 +72,7 @@ fun MainNavigation() {
     ) { paddingValues ->
         when (selectedItemIndex) {
             0 -> Dashboard()
-            1 -> IncidentsScreen()
+            1 -> IncidentsScreen(paddingValues)
             2 -> ProfileScreen()
             3 -> SettingsScreen()
         }

@@ -1,0 +1,60 @@
+{
+    "updaters": [
+      {
+        "type": "real-time-alerts",
+        "frequencySec": 30, 
+        "url": "https://gtfs.ztp.krakow.pl/ServiceAlerts_A.pb",
+        "feedId": "KRK_A"
+      },
+      {
+        "type": "stop-time-updater",
+        "frequencySec": 30,
+        "url": "https://gtfs.ztp.krakow.pl/TripUpdates_A.pb",
+        "feedId": "KRK_A"
+      },
+      {
+        "type": "vehicle-positions",
+        "frequencySec": 30,
+        "url": "https://gtfs.ztp.krakow.pl/VehiclePositions_A.pb",
+        "feedId": "KRK_A"
+      },
+      {
+        "type": "real-time-alerts",
+        "frequencySec": 30, 
+        "url": "https://gtfs.ztp.krakow.pl/ServiceAlerts_M.pb",
+        "feedId": "KRK_M"
+      },
+      {
+        "type": "stop-time-updater",
+        "frequencySec": 30,
+        "url": "https://gtfs.ztp.krakow.pl/TripUpdates_M.pb",
+        "feedId": "KRK_M"
+      },
+      {
+        "type": "vehicle-positions",
+        "frequencySec": 30,
+        "url": "https://gtfs.ztp.krakow.pl/VehiclePositions_M.pb",
+        "feedId": "KRK_M"
+      },      
+      {
+        "type": "real-time-alerts",
+        "frequencySec": 30, 
+        "url": "https://gtfs.ztp.krakow.pl/ServiceAlerts_T.pb",
+        "feedId": "KRK_T"
+      },
+      {
+        "type": "stop-time-updater",
+        "frequencySec": 30,
+        "url": "https://gtfs.ztp.krakow.pl/TripUpdates_T.pb",
+        "feedId": "KRK_T"
+      },
+      {
+        "type": "vehicle-positions",
+        "frequencySec": 30,
+        "url": "https://gtfs.ztp.krakow.pl/VehiclePositions_T.pb",
+        "feedId": "KRK_T"
+      }
+    ]
+  }
+  
+  

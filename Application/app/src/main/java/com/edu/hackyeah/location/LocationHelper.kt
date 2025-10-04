@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.location.Address
 import android.location.Geocoder
-import android.os.Build
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.edu.hackyeah.network.RoutingService
@@ -38,6 +37,25 @@ class LocationHelper(private val context: Context) {
                     val result = buildAddressString(address)
                     continuation.resume(result)
                 }
+            } else {
+                continuation.resume(null)
+            }
+        }.addOnFailureListener {
+            continuation.resume(null)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    suspend fun getCurrentLocation(): LocationPoint? = suspendCancellableCoroutine { continuation ->
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                continuation.resume(
+                    LocationPoint(
+                        latitude = location.latitude,
+                        longitude = location.longitude,
+                        address = ""
+                    )
+                )
             } else {
                 continuation.resume(null)
             }

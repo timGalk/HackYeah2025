@@ -19,6 +19,10 @@ import androidx.compose.ui.window.Dialog
 import com.edu.hackyeah.location.LocationHelper
 import com.edu.hackyeah.network.IncidentService
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.livedata.observeAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.edu.hackyeah.Auth.ViewModel.AuthState
+import com.edu.hackyeah.Auth.ViewModel.AuthViewModel
 
 enum class IncidentCategory(val displayName: String, val apiValue: String) {
     WYPADEK_DROGOWY("Wypadek drogowy", "wypadek_drogowy"),
@@ -41,6 +45,11 @@ fun ReportIncidentDialog(
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var successMessage by remember { mutableStateOf<String?>(null) }
+
+    // Observe authentication state (do NOT disable button because we want to show validation errors)
+    val authViewModel: AuthViewModel = viewModel()
+    val authState by authViewModel.authState.observeAsState(AuthState.Unauthenticated)
+    val userEmail by authViewModel.userProfile.observeAsState(null)
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -75,6 +84,16 @@ fun ReportIncidentDialog(
                             tint = Color.Gray
                         )
                     }
+                }
+
+                // Show info when user is not authenticated
+                if (authState !is AuthState.Authenticated) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Musisz być zalogowany, aby zgłosić incydent",
+                        fontSize = 12.sp,
+                        color = Color(0xFFD32F2F)
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -182,6 +201,10 @@ fun ReportIncidentDialog(
                 // Submit button
                 Button(
                     onClick = {
+                        if (authState !is AuthState.Authenticated) {
+                            errorMessage = "Musisz być zalogowany, aby zgłosić incydent"
+                            return@Button
+                        }
                         if (selectedCategory == null) {
                             errorMessage = "Wybierz kategorię"
                             return@Button
@@ -210,7 +233,8 @@ fun ReportIncidentDialog(
                                     longitude = location.longitude,
                                     description = description,
                                     category = selectedCategory!!.apiValue,
-                                    username = "janedoe"
+                                    username = userEmail.toString()
+
                                 )
 
                                 isLoading = false

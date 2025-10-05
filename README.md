@@ -35,6 +35,15 @@ Submit a new incident report.
   }
   ```
 
+### GET /api/v1/incidents
+Return all incidents ordered by their creation timestamp.
+
+### GET /api/v1/incidents/latest?limit=<N>
+Return the `N` most recent incidents (`limit` defaults to 10 and caps at 1000).
+
+### GET /api/v1/incidents/range?start=<ISO8601>&end=<ISO8601>
+Return incidents whose `created_at` falls within the inclusive interval.
+
 ### GET /api/v1/transport/modes
 List transport graph modes that were constructed at application startup.
 

@@ -1,8 +1,12 @@
 package com.edu.hackyeah.components
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -25,6 +30,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -37,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -44,6 +51,9 @@ import com.edu.hackyeah.network.IncidentService
 import com.edu.hackyeah.network.IncidentItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.edu.hackyeah.location.LocationHelper
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 data class Incident(
     val type: String,
@@ -51,7 +61,9 @@ data class Incident(
     val description: String,
     val time: String,
     val icon: ImageVector,
-    val color: Color
+    val color: Color,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,19 +73,55 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var incidents by remember { mutableStateOf(listOf<Incident>()) }
+    var selectedIncident by remember { mutableStateOf<Incident?>(null) }
+    var mapView by remember { mutableStateOf<org.osmdroid.views.MapView?>(null) }
+    val context = LocalContext.current
+    val locationHelper = remember { LocationHelper(context) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Load incidents from REST API
-    LaunchedEffect(Unit) {
-        isLoading = true
-        errorMessage = null
-        val result = withContext(Dispatchers.IO) { IncidentService.fetchLatestIncidents(limit = 20) }
-        result.onSuccess { list ->
-            incidents = list.mapNotNull { it.toUiIncident() }
-            isLoading = false
-        }.onFailure { e ->
-            errorMessage = e.message ?: "Nie udało się pobrać incydentów"
-            isLoading = false
+    // Ask for location and load incidents within 1km of current location
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions: Map<String, @JvmSuppressWildcards Boolean> ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            coroutineScope.launch {
+                isLoading = true
+                errorMessage = null
+                val current = locationHelper.getCurrentLocation()
+                if (current != null) {
+                    val result = withContext(Dispatchers.IO) {
+                        IncidentService.fetchIncidentsByCoordinates(
+                            coordinates = listOf(current.latitude to current.longitude),
+                            maxDistanceKm = 1.0
+                        )
+                    }
+                    result.onSuccess { list ->
+                        incidents = list.mapNotNull { it.toUiIncident() }
+                        isLoading = false
+                    }.onFailure { e ->
+                        errorMessage = e.message ?: "Nie udało się pobrać incydentów"
+                        isLoading = false
+                    }
+                } else {
+                    errorMessage = "Nie udało się pobrać lokalizacji urządzenia"
+                    isLoading = false
+                }
+            }
+        } else {
+            errorMessage = "Brak uprawnień do lokalizacji"
         }
+    }
+
+    // Trigger permission request on enter
+    LaunchedEffect(Unit) {
+        permissionLauncher.launch(
+            arrayOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+        )
     }
 
     if (showReportDialog) {
@@ -92,6 +140,62 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
             .background(Color(0xFFF5F5F5))
             .padding(16.dp)
     ) {
+        // Map with incident markers + quick recenter button
+        val incidentMarkers = incidents.filter { it.latitude != null && it.longitude != null }
+            .map { 
+                com.edu.hackyeah.location.LocationPoint(
+                    latitude = it.latitude!!,
+                    longitude = it.longitude!!,
+                    address = "${it.type}: ${it.description}"
+                )
+            }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+        ) {
+            Map(
+                modifier = Modifier
+                    .fillMaxSize(),
+                userMarkers = incidentMarkers,
+                enableMyLocation = true,
+                routePoints = emptyList(),
+                onMapReady = { map ->
+                    mapView = map
+                }
+            )
+
+            SmallFloatingActionButton(
+                onClick = {
+                    coroutineScope.launch {
+                        val current = locationHelper.getCurrentLocation()
+                        if (current != null && mapView != null) {
+                            val gp = org.osmdroid.util.GeoPoint(current.latitude, current.longitude)
+                            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                                mapView?.controller?.animateTo(gp)
+                                mapView?.controller?.setZoom(15.0)
+                            }
+                        } else if (mapView == null) {
+                            errorMessage = "Mapa jeszcze się nie załadowała"
+                        } else {
+                            errorMessage = "Nie udało się pobrać lokalizacji"
+                        }
+                    }
+                },
+                containerColor = Color(0xFF1976D2),
+                contentColor = Color.White,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.MyLocation,
+                    contentDescription = "Pokaż moją lokalizację"
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Simple Add Button
         Button(
             onClick = { showReportDialog = true },
@@ -132,8 +236,24 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(incidents.size) { index ->
-                        IncidentCard(incident = incidents[index])
+                        IncidentCard(
+                            incident = incidents[index],
+                            onClick = { selectedIncident = incidents[index] }
+                        )
                     }
+                }
+            }
+        }
+    }
+
+    // Zoom to selected incident on map when clicked
+    LaunchedEffect(selectedIncident) {
+        selectedIncident?.let { incident ->
+            if (incident.latitude != null && incident.longitude != null && mapView != null) {
+                val geoPoint = org.osmdroid.util.GeoPoint(incident.latitude, incident.longitude)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    mapView?.controller?.animateTo(geoPoint)
+                    mapView?.controller?.setZoom(16.0)
                 }
             }
         }
@@ -159,16 +279,18 @@ private fun IncidentItem.toUiIncident(): Incident? {
         description = description ?: "",
         time = createdAt ?: "",
         icon = icon,
-        color = color
+        color = color,
+        latitude = latitude,
+        longitude = longitude
     )
 }
 
 @Composable
-fun IncidentCard(incident: Incident) {
+fun IncidentCard(incident: Incident, onClick: (() -> Unit)? = null) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO: Show incident details */ },
+            .clickable(enabled = onClick != null) { onClick?.invoke() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(12.dp)

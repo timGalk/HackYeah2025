@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin import incidents_admin_router
 from app.api.v1.incidents import router as incidents_router
+from app.api.v1.route_preferences import router as route_preferences_router
 from app.api.v1.transport import router as transport_router
 from app.core.config import Settings, get_settings
 from app.core.elasticsearch import (
@@ -32,6 +33,7 @@ async def lifespan(app: FastAPI):
     client = await create_elasticsearch_client(settings)
     app.state.elasticsearch = client
     await ensure_index(client, settings.elasticsearch_index)
+    await ensure_index(client, settings.user_routes_index)
 
     transport_service = TransportGraphService(
         feed_path=Path(settings.gtfs_feed_path),
@@ -85,6 +87,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(incidents_router, prefix="/api/v1")
+    app.include_router(route_preferences_router, prefix="/api/v1")
     app.include_router(transport_router, prefix="/api/v1")
     app.include_router(incidents_admin_router)
     return app

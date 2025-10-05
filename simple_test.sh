@@ -1,9 +1,17 @@
 #!/bin/bash
 
-# Simple test script for Incident API
-BASE_URL="http://localhost:8000"
+set -euo pipefail
 
-echo "Testing Incident API..."
+BASE_URL=${BASE_URL:-"http://localhost:8000"}
+USER_ID=${USER_ID:-"workflow-user"}
+PREFERENCE_KIND=${PREFERENCE_KIND:-"frequent"}
+NOTES=${NOTES:-"Created by simple_test.sh"}
+LATITUDE=${LATITUDE:-"50.064276"}
+LONGITUDE=${LONGITUDE:-"19.924364"}
+CATEGORY=${CATEGORY:-"Traffic"}
+DESCRIPTION=${DESCRIPTION:-"Workflow verification incident"}
+USERNAME=${USERNAME:-"workflow_tester"}
+CLEANUP=${CLEANUP:-"true"}
 
 # Test 1: Valid incident
 echo "Test 1: Creating valid incident..."

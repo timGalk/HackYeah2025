@@ -10,7 +10,9 @@ from app.core.dependencies import (
     get_transport_service,
 )
 from app.repositories.incidents import IncidentRepository
+from app.repositories.route_preferences import RoutePreferenceRepository
 from app.services.incidents import IncidentService
+from app.services.route_preferences import RoutePreferenceService
 from app.services.transport import TransportGraphService
 
 
@@ -25,10 +27,28 @@ def get_incident_repository(
 
 def get_incident_service(
     repository: IncidentRepository = Depends(get_incident_repository),
+    transport_service: TransportGraphService = Depends(get_transport_service),
 ) -> IncidentService:
     """Provide an incident service instance per request."""
 
-    return IncidentService(repository=repository)
+    return IncidentService(repository=repository, transport_service=transport_service)
+
+
+def get_route_preference_repository(
+    client: AsyncElasticsearch = Depends(get_elasticsearch_client),
+    settings: Settings = Depends(get_app_settings),
+) -> RoutePreferenceRepository:
+    """Provide a route preference repository instance per request."""
+
+    return RoutePreferenceRepository(client=client, index_name=settings.user_routes_index)
+
+
+def get_route_preference_service(
+    repository: RoutePreferenceRepository = Depends(get_route_preference_repository),
+) -> RoutePreferenceService:
+    """Provide a route preference service instance per request."""
+
+    return RoutePreferenceService(repository=repository)
 
 
 def get_transport_graph_service(

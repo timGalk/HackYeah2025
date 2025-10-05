@@ -37,10 +37,14 @@ async def report_incident(
 )
 async def list_incidents(
     service: IncidentService = Depends(get_incident_service),
+    routes: list[str] | None = Query(
+        default=None,
+        description="Filter incidents to the provided GTFS route identifiers.",
+    ),
 ) -> IncidentListResponse:
     """Return all incidents stored in the system."""
 
-    return await service.get_all_incidents()
+    return await service.get_all_incidents(routes=routes)
 
 
 @router.get(
@@ -50,11 +54,15 @@ async def list_incidents(
 )
 async def latest_incidents(
     limit: int = Query(10, gt=0, le=1000, description="Maximum number of incidents to return."),
+    routes: list[str] | None = Query(
+        default=None,
+        description="Filter incidents to the provided GTFS route identifiers.",
+    ),
     service: IncidentService = Depends(get_incident_service),
 ) -> IncidentListResponse:
     """Return the last N incidents ordered by creation time descending."""
 
-    return await service.get_recent_incidents(limit)
+    return await service.get_recent_incidents(limit, routes=routes)
 
 
 @router.get(
@@ -65,6 +73,10 @@ async def latest_incidents(
 async def incidents_in_range(
     start: datetime = Query(..., description="Start of the interval (inclusive)."),
     end: datetime = Query(..., description="End of the interval (inclusive)."),
+    routes: list[str] | None = Query(
+        default=None,
+        description="Filter incidents to the provided GTFS route identifiers.",
+    ),
     service: IncidentService = Depends(get_incident_service),
 ) -> IncidentListResponse:
     """Return incidents created within the specified time interval."""
@@ -73,6 +85,6 @@ async def incidents_in_range(
         msg = "Parameter 'end' must be greater than or equal to 'start'."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
     try:
-        return await service.get_incidents_between(start=start, end=end)
+        return await service.get_incidents_between(start=start, end=end, routes=routes)
     except ValueError as exc:  # pragma: no cover - maps to HTTP error response
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

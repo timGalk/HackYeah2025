@@ -19,6 +19,9 @@ class Settings:
     elasticsearch_index: str = field(
         default_factory=lambda: os.getenv("ELASTICSEARCH_INDEX", "incidents")
     )
+    user_routes_index: str = field(
+        default_factory=lambda: os.getenv("USER_ROUTES_INDEX", "user_routes")
+    )
     gtfs_feed_path: str = field(
         default_factory=lambda: os.getenv("GTFS_FEED_PATH", "otp_data/GTFS_KRK_A.zip")
     )

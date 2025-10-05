@@ -52,6 +52,22 @@ class IncidentService:
         incidents = await self._repository.get_all_incidents()
         return IncidentListResponse(incidents=self._to_models(incidents))
 
+    async def get_unapproved_incidents(self) -> IncidentListResponse:
+        """Return incidents that still await administrative approval."""
+
+        incidents = await self._repository.get_unapproved_incidents()
+        return IncidentListResponse(incidents=self._to_models(incidents))
+
+    async def approve_incident(self, incident_id: str) -> bool:
+        """Mark the incident identified by the given id as approved."""
+
+        return await self._repository.approve_incident(incident_id)
+
+    async def revoke_incident_approval(self, incident_id: str) -> bool:
+        """Remove approval from the incident identified by the given id."""
+
+        return await self._repository.unapprove_incident(incident_id)
+
     def _to_models(self, payload: Sequence[dict[str, Any]]) -> list[IncidentRead]:
         """Convert raw repository documents into typed models."""
 

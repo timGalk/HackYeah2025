@@ -6,22 +6,31 @@ import asyncio
 import logging
 from collections.abc import Iterable
 from contextlib import suppress
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.services.transport import TransportGraphService
 
 EdgeKey = tuple[str, str, str, str | int]
 
 
+@dataclass(frozen=True)
+class IncidentDelayConfig:
+    """Configuration describing how an incident category impacts a graph edge."""
+
+    multiplier: float
+    approval_threshold: float
+
+
 class IncidentImpactService:
     """Poll incidents and update transport graphs according to delay factors."""
 
-    INCIDENT_DELAY_MAPPING: dict[str, float] = {
-        "Crush": float("inf"),
-        "Traffic": 1.5,
+    INCIDENT_DELAY_MAPPING: dict[str, IncidentDelayConfig] = {
+        "Crush": IncidentDelayConfig(multiplier=float("inf"), approval_threshold=0.0),
+        "Traffic": IncidentDelayConfig(multiplier=1.5, approval_threshold=50.0),
     }
 
     def __init__(
@@ -63,7 +72,8 @@ class IncidentImpactService:
         return list(self._modified_edges)
 
     async def _run(self) -> None:
-        async with AsyncClient(app=self._app, base_url="http://internal.app") as client:
+        transport = ASGITransport(app=self._app)
+        async with AsyncClient(transport=transport, base_url="http://internal.app") as client:
             while True:
                 try:
                     incidents = await self._fetch_incidents(client)
@@ -87,12 +97,16 @@ class IncidentImpactService:
         """Apply delay factors derived from incidents to the transport network."""
 
         target_multipliers: dict[EdgeKey, float] = {}
+        accumulated_scores: dict[tuple[EdgeKey, str], float] = {}
 
         for incident in incidents:
             category = incident.get("category")
-            multiplier = self.INCIDENT_DELAY_MAPPING.get(str(category))
-            if multiplier is None:
+            if category is None:
                 continue
+            config = self.INCIDENT_DELAY_MAPPING.get(str(category))
+            if config is None:
+                continue
+            multiplier = config.multiplier
             if multiplier <= 0:
                 continue
 
@@ -117,6 +131,27 @@ class IncidentImpactService:
                 if current_multiplier != 0:
                     baseline /= current_multiplier
                 self._edge_baselines[edge_key] = baseline
+
+            if bool(incident.get("approved")):
+                previous_best = target_multipliers.get(edge_key, 1.0)
+                if multiplier > previous_best:
+                    target_multipliers[edge_key] = multiplier
+                continue
+
+            raw_score = incident.get("reporter_social_score", 0.0)
+            try:
+                social_score = float(raw_score)
+            except (TypeError, ValueError):
+                social_score = 0.0
+            if social_score < 0:
+                social_score = 0.0
+
+            score_key = (edge_key, str(category))
+            running_total = accumulated_scores.get(score_key, 0.0) + social_score
+            accumulated_scores[score_key] = running_total
+
+            if running_total < config.approval_threshold:
+                continue
 
             previous_best = target_multipliers.get(edge_key, 1.0)
             if multiplier > previous_best:

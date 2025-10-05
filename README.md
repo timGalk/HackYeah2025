@@ -25,7 +25,8 @@ Submit a new incident report.
     "description": "Road blocked by fallen tree",
     "category": "infrastructure",
     "username": "janedoe",
-    "approved": false
+    "approved": false,
+    "reporter_social_score": 12.5
   }
   ```
 - **Success Response** `201 Created`
@@ -34,6 +35,10 @@ Submit a new incident report.
     "incident_id": "abc123"
   }
   ```
+- **Notes**
+  - Unapproved incidents influence transport edges only when the combined
+    `reporter_social_score` of reporters within the same category exceeds the configured
+    acceptance threshold.
 
 ### GET /api/v1/incidents
 Return all incidents ordered by their creation timestamp.
@@ -141,6 +146,20 @@ Streams a snapshot followed by incremental edge updates, enabling live visualisa
 ### GET /api/v1/transport/visualizer
 Serves an interactive HTML dashboard for exploring the transport graph and issuing
 edge updates in real time.
+
+### GET /admin/incidents
+Render a lightweight HTML admin panel listing all incidents with their current approval
+state. Each entry displays key details alongside an action button to approve pending
+incidents or revoke approval. Approved incidents immediately affect transport edges
+regardless of reporter score, and revoking the approval restores social-score gating.
+
+### POST /admin/incidents/{incident_id}/approve
+Approve the referenced incident and redirect back to the admin panel. Incidents already
+approved are treated as no-ops.
+
+### POST /admin/incidents/{incident_id}/revoke
+Revoke approval for the referenced incident and redirect back to the admin panel. If the
+incident was already unapproved, the request is a no-op.
 
 ## Configuration
 

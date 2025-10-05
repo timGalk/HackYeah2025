@@ -31,6 +31,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +40,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.edu.hackyeah.network.IncidentService
+import com.edu.hackyeah.network.IncidentItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class Incident(
     val type: String,
@@ -53,34 +58,23 @@ data class Incident(
 @Composable
 fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
     var showReportDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var incidents by remember { mutableStateOf(listOf<Incident>()) }
 
-    // Sample user-reported incidents
-    val incidents = listOf(
-        Incident(
-            type = "Wypadek drogowy",
-            location = "A4, Kraków - Katowice",
-            description = "Kolizja 2 pojazdów, ruch ograniczony",
-            time = "5 min temu",
-            icon = Icons.Default.Warning,
-            color = Color(0xFFD32F2F)
-        ),
-        Incident(
-            type = "Korek",
-            location = "Rondo Mogilskie, Kraków",
-            description = "Duże natężenie ruchu",
-            time = "15 min temu",
-            icon = Icons.Default.Info,
-            color = Color(0xFFF57C00)
-        ),
-        Incident(
-            type = "Potrącenie",
-            location = "ul. Wielicka, Kraków",
-            description = "Potrącenie pieszego na przejściu",
-            time = "1 godz. temu",
-            icon = Icons.Default.Warning,
-            color = Color(0xFFD32F2F)
-        )
-    )
+    // Load incidents from REST API
+    LaunchedEffect(Unit) {
+        isLoading = true
+        errorMessage = null
+        val result = withContext(Dispatchers.IO) { IncidentService.fetchLatestIncidents(limit = 20) }
+        result.onSuccess { list ->
+            incidents = list.mapNotNull { it.toUiIncident() }
+            isLoading = false
+        }.onFailure { e ->
+            errorMessage = e.message ?: "Nie udało się pobrać incydentów"
+            isLoading = false
+        }
+    }
 
     if (showReportDialog) {
         ReportIncidentDialog(
@@ -124,16 +118,49 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Incidents list
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(incidents.size) { index ->
-                IncidentCard(incident = incidents[index])
+        // State rendering
+        when {
+            isLoading -> {
+                Text(text = "Ładowanie incydentów...", color = Color(0xFF757575))
+            }
+            errorMessage != null -> {
+                Text(text = errorMessage!!, color = Color(0xFFD32F2F))
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(incidents.size) { index ->
+                        IncidentCard(incident = incidents[index])
+                    }
+                }
             }
         }
     }
+}
+
+// Map API model to UI model
+private fun IncidentItem.toUiIncident(): Incident? {
+    val cat = (category ?: "").lowercase()
+    val (icon, color, typeLabel) = when (cat) {
+        "wypadek_drogowy", "accident", "crash" -> Triple(Icons.Default.Warning, Color(0xFFD32F2F), "Wypadek drogowy")
+        "korek", "traffic", "jam" -> Triple(Icons.Default.Info, Color(0xFFF57C00), "Korek")
+        else -> Triple(Icons.Default.Info, Color(0xFF1976D2), category ?: "Zgłoszenie")
+    }
+    val locText = if (latitude != null && longitude != null) {
+        "${"%.5f".format(latitude)}, ${"%.5f".format(longitude)}"
+    } else {
+        "Brak lokalizacji"
+    }
+    return Incident(
+        type = typeLabel,
+        location = locText,
+        description = description ?: "",
+        time = createdAt ?: "",
+        icon = icon,
+        color = color
+    )
 }
 
 @Composable

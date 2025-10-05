@@ -48,6 +48,9 @@ class Settings:
     incident_poll_interval_seconds: float = field(
         default_factory=lambda: float(os.getenv("INCIDENT_POLL_INTERVAL_SECONDS", "60"))
     )
+    facebook_poll_interval_seconds: float = field(
+        default_factory=lambda: float(os.getenv("FACEBOOK_POLL_INTERVAL_SECONDS", "300"))
+    )
 
     def elasticsearch_hosts(self) -> list[str]:
         """Return the configured Elasticsearch hosts list for the async client."""

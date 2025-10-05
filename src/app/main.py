@@ -22,6 +22,9 @@ from app.core.elasticsearch import (
     ensure_index,
     facebook_posts_index_mappings,
 )
+from app.repositories.facebook_posts import FacebookPostRepository
+from app.services.facebook_post_polling import FacebookPostPollingService
+from app.services.facebook_posts import FacebookPostService
 from app.services.incident_impacts import IncidentImpactService
 from app.services.transport import BikeParkingLocation, TransportGraphService
 
@@ -56,6 +59,24 @@ async def lifespan(app: FastAPI):
 
     app.state.transport_service = transport_service
 
+    facebook_post_repository = FacebookPostRepository(
+        client=client,
+        index_name=settings.facebook_posts_index,
+    )
+    facebook_post_service = FacebookPostService(
+        repository=facebook_post_repository,
+        mock_data_path=Path(settings.facebook_posts_mock_path),
+        transport_service=transport_service,
+    )
+    app.state.facebook_post_service = facebook_post_service
+
+    facebook_post_polling_service = FacebookPostPollingService(
+        service=facebook_post_service,
+        interval_seconds=settings.facebook_poll_interval_seconds,
+    )
+    facebook_post_polling_service.start()
+    app.state.facebook_post_polling_service = facebook_post_polling_service
+
     incident_impact_service = IncidentImpactService(
         app=app,
         transport_service=transport_service,
@@ -66,6 +87,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await facebook_post_polling_service.stop()
         await incident_impact_service.stop()
         await close_elasticsearch_client(client)
 

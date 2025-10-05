@@ -1,8 +1,6 @@
 """Dependency wiring for API routes."""
 
-from pathlib import Path
-
-from fastapi import Depends
+from fastapi import Depends, Request
 from elasticsearch import AsyncElasticsearch
 
 from app.core.config import Settings
@@ -11,7 +9,6 @@ from app.core.dependencies import (
     get_elasticsearch_client,
     get_transport_service,
 )
-from app.repositories.facebook_posts import FacebookPostRepository
 from app.repositories.incidents import IncidentRepository
 from app.repositories.route_preferences import RoutePreferenceRepository
 from app.services.facebook_posts import FacebookPostService
@@ -38,23 +35,14 @@ def get_incident_service(
     return IncidentService(repository=repository, transport_service=transport_service)
 
 
-def get_facebook_post_repository(
-    client: AsyncElasticsearch = Depends(get_elasticsearch_client),
-    settings: Settings = Depends(get_app_settings),
-) -> FacebookPostRepository:
-    """Provide a Facebook post repository instance per request."""
+def get_facebook_post_service(request: Request) -> FacebookPostService:
+    """Return the shared Facebook post service stored on application state."""
 
-    return FacebookPostRepository(client=client, index_name=settings.facebook_posts_index)
-
-
-def get_facebook_post_service(
-    repository: FacebookPostRepository = Depends(get_facebook_post_repository),
-    settings: Settings = Depends(get_app_settings),
-) -> FacebookPostService:
-    """Provide a Facebook post service instance per request."""
-
-    mock_path = Path(settings.facebook_posts_mock_path)
-    return FacebookPostService(repository=repository, mock_data_path=mock_path)
+    service = getattr(request.app.state, "facebook_post_service", None)
+    if service is None:
+        msg = "Facebook post service is not configured on application state."
+        raise RuntimeError(msg)
+    return service
 
 
 def get_route_preference_repository(

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Iterable
 
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch, NotFoundError
 from elasticsearch.helpers import async_bulk
 
 from app.schemas.facebook_posts import FacebookPostDocument
@@ -40,3 +40,53 @@ class FacebookPostRepository:
             refresh=True,
         )
         return int(success)
+
+    async def list_posts(self) -> list[dict[str, Any]]:
+        """Return all Facebook posts sorted by scraping time descending."""
+
+        response = await self._client.search(
+            index=self._index_name,
+            size=500,
+            sort=[{"scraped_at": {"order": "desc"}}],
+            query={"match_all": {}},
+        )
+        hits = response.get("hits", {}).get("hits", [])
+        return [self._hydrate_hit(hit) for hit in hits]
+
+    async def get_post(self, post_id: str) -> dict[str, Any] | None:
+        """Fetch a single post by its identifier or return ``None`` when missing."""
+
+        try:
+            response = await self._client.get(index=self._index_name, id=post_id)
+        except NotFoundError:
+            return None
+        return self._hydrate_hit(response)
+
+    async def update_post(self, post_id: str, document: dict[str, Any]) -> bool:
+        """Partially update a post document. Returns True when the post exists."""
+
+        try:
+            await self._client.update(
+                index=self._index_name,
+                id=post_id,
+                doc=document,
+                refresh="wait_for",
+                retry_on_conflict=2,
+            )
+        except NotFoundError:
+            return False
+        return True
+
+    async def count_posts(self) -> int:
+        """Return the number of Facebook posts stored in the index."""
+
+        response = await self._client.count(index=self._index_name)
+        return int(response.get("count", 0))
+
+    @staticmethod
+    def _hydrate_hit(hit: dict[str, Any]) -> dict[str, Any]:
+        """Merge Elasticsearch metadata with the persisted payload."""
+
+        source = dict(hit.get("_source", {}))
+        source["id"] = str(hit.get("_id"))
+        return source

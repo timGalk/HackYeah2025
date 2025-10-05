@@ -57,5 +57,12 @@ def facebook_posts_index_mappings() -> dict[str, Any]:
             "longitude": {"type": "float"},
             "source": {"type": "keyword"},
             "scraped_at": {"type": "date"},
+            "approved": {"type": "boolean"},
+            "edge_mode": {"type": "keyword"},
+            "edge_source": {"type": "keyword"},
+            "edge_target": {"type": "keyword"},
+            "edge_key": {"type": "keyword"},
+            "edge_weight_before": {"type": "float"},
+            "edge_weight_applied": {"type": "float"},
         }
     }

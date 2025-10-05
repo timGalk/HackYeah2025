@@ -37,10 +37,52 @@ class FacebookPostDocument(BaseModel):
         default_factory=datetime.utcnow,
         description="Timestamp describing when the post payload was captured.",
     )
+    approved: bool = Field(
+        default=False,
+        description="Whether the post has been approved by an administrator.",
+    )
+    edge_mode: str | None = Field(
+        default=None,
+        description="Transport mode of the closest edge affected by this post.",
+    )
+    edge_source: str | None = Field(
+        default=None,
+        description="Source node identifier of the impacted edge.",
+    )
+    edge_target: str | None = Field(
+        default=None,
+        description="Target node identifier of the impacted edge.",
+    )
+    edge_key: str | None = Field(
+        default=None,
+        description="Edge key within the transport graph corresponding to the impact.",
+    )
+    edge_weight_before: float | None = Field(
+        default=None,
+        gt=0,
+        description="Baseline edge weight captured prior to applying the approval impact.",
+    )
+    edge_weight_applied: float | None = Field(
+        default=None,
+        gt=0,
+        description="Edge weight applied when the post was approved.",
+    )
 
     model_config = {
         "extra": "forbid",
     }
+
+
+class FacebookPostRead(FacebookPostDocument):
+    """Representation of a Facebook post retrieved from Elasticsearch."""
+
+    id: str = Field(..., description="Elasticsearch document identifier assigned to the post.")
+
+
+class FacebookPostListResponse(BaseModel):
+    """Container for collections of Facebook posts."""
+
+    posts: list[FacebookPostRead]
 
 
 class FacebookPostsUploadRequest(BaseModel):

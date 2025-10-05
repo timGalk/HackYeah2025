@@ -51,7 +51,9 @@ data class Incident(
     val description: String,
     val time: String,
     val icon: ImageVector,
-    val color: Color
+    val color: Color,
+    val latitude: Double? = null,
+    val longitude: Double? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,6 +63,8 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var incidents by remember { mutableStateOf(listOf<Incident>()) }
+    var selectedIncident by remember { mutableStateOf<Incident?>(null) }
+    var mapView by remember { mutableStateOf<org.osmdroid.views.MapView?>(null) }
 
     // Load incidents from REST API
     LaunchedEffect(Unit) {
@@ -92,6 +96,28 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
             .background(Color(0xFFF5F5F5))
             .padding(16.dp)
     ) {
+        // Map with incident markers
+        val incidentMarkers = incidents.filter { it.latitude != null && it.longitude != null }
+            .map { 
+                com.edu.hackyeah.location.LocationPoint(
+                    latitude = it.latitude!!,
+                    longitude = it.longitude!!,
+                    address = "${it.type}: ${it.description}"
+                )
+            }
+        Map(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp),
+            userMarkers = incidentMarkers,
+            enableMyLocation = true,
+            routePoints = emptyList(),
+            onMapReady = { map ->
+                mapView = map
+            }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+
         // Simple Add Button
         Button(
             onClick = { showReportDialog = true },
@@ -132,8 +158,24 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(incidents.size) { index ->
-                        IncidentCard(incident = incidents[index])
+                        IncidentCard(
+                            incident = incidents[index],
+                            onClick = { selectedIncident = incidents[index] }
+                        )
                     }
+                }
+            }
+        }
+    }
+
+    // Zoom to selected incident on map when clicked
+    LaunchedEffect(selectedIncident) {
+        selectedIncident?.let { incident ->
+            if (incident.latitude != null && incident.longitude != null && mapView != null) {
+                val geoPoint = org.osmdroid.util.GeoPoint(incident.latitude, incident.longitude)
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    mapView?.controller?.animateTo(geoPoint)
+                    mapView?.controller?.setZoom(16.0)
                 }
             }
         }
@@ -159,16 +201,18 @@ private fun IncidentItem.toUiIncident(): Incident? {
         description = description ?: "",
         time = createdAt ?: "",
         icon = icon,
-        color = color
+        color = color,
+        latitude = latitude,
+        longitude = longitude
     )
 }
 
 @Composable
-fun IncidentCard(incident: Incident) {
+fun IncidentCard(incident: Incident, onClick: (() -> Unit)? = null) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { /* TODO: Show incident details */ },
+            .clickable(enabled = onClick != null) { onClick?.invoke() },
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         shape = RoundedCornerShape(12.dp)

@@ -39,9 +39,8 @@ fun Map(
         if (userMarkers.isNotEmpty() || routePoints.isNotEmpty()) {
             mapView.overlays.removeAll { it is Marker || it is Polyline }
 
-            val pointsForLine = routePoints.ifEmpty { userMarkers }
-
-            if (pointsForLine.size >= 2) {
+            // Only draw polyline if routePoints are explicitly provided
+            if (routePoints.isNotEmpty() && routePoints.size >= 2) {
                 val polyline = Polyline().apply {
                     outlinePaint.color = "#1976D2".toColorInt()
                     outlinePaint.strokeWidth = 10f
@@ -49,7 +48,7 @@ fun Map(
                     outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
 
                     // Add all points to the polyline
-                    val geoPoints = pointsForLine.map { GeoPoint(it.latitude, it.longitude) }
+                    val geoPoints = routePoints.map { GeoPoint(it.latitude, it.longitude) }
                     setPoints(geoPoints)
                 }
                 mapView.overlays.add(polyline)
@@ -78,8 +77,8 @@ fun Map(
                 }
             }
 
-            // Zoom to show all user markers
-            val pointsForZoom = userMarkers.ifEmpty { routePoints }
+            // Zoom to show all markers
+            val pointsForZoom = if (routePoints.isNotEmpty()) routePoints else userMarkers
 
             if (pointsForZoom.size >= 2) {
                 val latitudes = pointsForZoom.map { it.latitude }

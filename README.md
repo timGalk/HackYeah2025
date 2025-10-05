@@ -183,9 +183,13 @@ List transport graph modes that were constructed at application startup.
 - **Success Response** `200 OK`
   ```json
   {
-    "modes": ["bus", "tram", "walking", "bike"]
+    "modes": ["bike", "bus", "walking"]
   }
   ```
+- **Notes**
+  - Available modes depend on the GTFS feed and configuration
+  - Common modes include: `bus`, `bike`, `walking`
+  - Mode availability may vary based on data availability
 
 ### GET /api/v1/transport/routes?mode=<mode>&source=<source>&target=<target>
 Plan a route within a transport mode and flag segments slowed down by incidents. When

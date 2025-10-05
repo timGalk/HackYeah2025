@@ -19,6 +19,7 @@ dependencies = [
     "httpx>=0.28.1",
     "python-multipart>=0.0.20",
     "orjson>=3.10",
+    "aiohttp>=3.12.15",
 ]
 
 [tool.setuptools]

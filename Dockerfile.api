@@ -15,6 +15,7 @@ RUN pip install --upgrade pip \
 COPY pyproject.toml ./
 COPY src ./src
 COPY otp_data ./otp_data
+COPY .env ./.env
 
 RUN uv pip install --system --no-cache-dir .
 

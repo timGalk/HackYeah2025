@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin import incidents_admin_router
+from app.api.v1.facebook_posts import router as facebook_posts_router
 from app.api.v1.incidents import router as incidents_router
 from app.api.v1.route_preferences import router as route_preferences_router
 from app.api.v1.transport import router as transport_router
@@ -19,7 +20,11 @@ from app.core.elasticsearch import (
     close_elasticsearch_client,
     create_elasticsearch_client,
     ensure_index,
+    facebook_posts_index_mappings,
 )
+from app.repositories.facebook_posts import FacebookPostRepository
+from app.services.facebook_post_polling import FacebookPostPollingService
+from app.services.facebook_posts import FacebookPostService
 from app.services.incident_impacts import IncidentImpactService
 from app.services.transport import BikeParkingLocation, TransportGraphService
 
@@ -34,6 +39,11 @@ async def lifespan(app: FastAPI):
     app.state.elasticsearch = client
     await ensure_index(client, settings.elasticsearch_index)
     await ensure_index(client, settings.user_routes_index)
+    await ensure_index(
+        client,
+        settings.facebook_posts_index,
+        mappings=facebook_posts_index_mappings(),
+    )
 
     transport_service = TransportGraphService(
         feed_path=Path(settings.gtfs_feed_path),
@@ -49,6 +59,24 @@ async def lifespan(app: FastAPI):
 
     app.state.transport_service = transport_service
 
+    facebook_post_repository = FacebookPostRepository(
+        client=client,
+        index_name=settings.facebook_posts_index,
+    )
+    facebook_post_service = FacebookPostService(
+        repository=facebook_post_repository,
+        mock_data_path=Path(settings.facebook_posts_mock_path),
+        transport_service=transport_service,
+    )
+    app.state.facebook_post_service = facebook_post_service
+
+    facebook_post_polling_service = FacebookPostPollingService(
+        service=facebook_post_service,
+        interval_seconds=settings.facebook_poll_interval_seconds,
+    )
+    facebook_post_polling_service.start()
+    app.state.facebook_post_polling_service = facebook_post_polling_service
+
     incident_impact_service = IncidentImpactService(
         app=app,
         transport_service=transport_service,
@@ -59,6 +87,7 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
+        await facebook_post_polling_service.stop()
         await incident_impact_service.stop()
         await close_elasticsearch_client(client)
 
@@ -87,6 +116,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(incidents_router, prefix="/api/v1")
+    app.include_router(facebook_posts_router, prefix="/api/v1")
     app.include_router(route_preferences_router, prefix="/api/v1")
     app.include_router(transport_router, prefix="/api/v1")
     app.include_router(incidents_admin_router)

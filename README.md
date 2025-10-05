@@ -90,6 +90,30 @@ Return incidents whose `created_at` falls within the inclusive interval.
 - **Query Parameters**
   - `routes` *(optional, repeatable)* – Restrict the feed to specific GTFS route identifiers.
 
+### POST /api/v1/facebook-posts/upload
+Upload Facebook posts into Elasticsearch using mock data or a future live scraper.
+
+- **Request Body**
+  ```json
+  {
+    "source": "mock"
+  }
+  ```
+- **Success Response** `200 OK`
+  ```json
+  {
+    "uploaded": 10,
+    "source": "mock",
+    "warning": null
+  }
+  ```
+- **Notes**
+  - When `source` is set to `scrape`, the endpoint returns a warning message because
+    live scraping is not implemented yet. The request still succeeds without ingesting
+    new posts.
+  - Mock uploads read data from `src/scrapper/parsed_posts.json` and write documents to
+    the `facebook_posts` Elasticsearch index.
+
 ### GET /api/v1/users/{user_id}/routes
 Return the planned and frequent routes configured for a user.
 

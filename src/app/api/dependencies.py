@@ -1,6 +1,6 @@
 """Dependency wiring for API routes."""
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from elasticsearch import AsyncElasticsearch
 
 from app.core.config import Settings
@@ -11,6 +11,7 @@ from app.core.dependencies import (
 )
 from app.repositories.incidents import IncidentRepository
 from app.repositories.route_preferences import RoutePreferenceRepository
+from app.services.facebook_posts import FacebookPostService
 from app.services.incidents import IncidentService
 from app.services.route_preferences import RoutePreferenceService
 from app.services.transport import TransportGraphService
@@ -32,6 +33,16 @@ def get_incident_service(
     """Provide an incident service instance per request."""
 
     return IncidentService(repository=repository, transport_service=transport_service)
+
+
+def get_facebook_post_service(request: Request) -> FacebookPostService:
+    """Return the shared Facebook post service stored on application state."""
+
+    service = getattr(request.app.state, "facebook_post_service", None)
+    if service is None:
+        msg = "Facebook post service is not configured on application state."
+        raise RuntimeError(msg)
+    return service
 
 
 def get_route_preference_repository(

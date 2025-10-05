@@ -264,7 +264,9 @@ fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValu
 private fun IncidentItem.toUiIncident(): Incident? {
     val cat = (category ?: "").lowercase()
     val (icon, color, typeLabel) = when (cat) {
-        "wypadek_drogowy", "accident", "crash" -> Triple(Icons.Default.Warning, Color(0xFFD32F2F), "Wypadek drogowy")
+        // Backend structure: "Crush" (typo from server) and synonyms
+        "wypadek_drogowy", "accident", "crash", "crush" -> Triple(Icons.Default.Warning, Color(0xFFD32F2F), "Wypadek drogowy")
+        // Traffic jams / congestion
         "korek", "traffic", "jam" -> Triple(Icons.Default.Info, Color(0xFFF57C00), "Korek")
         else -> Triple(Icons.Default.Info, Color(0xFF1976D2), category ?: "Zgłoszenie")
     }

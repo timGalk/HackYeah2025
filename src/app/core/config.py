@@ -22,6 +22,14 @@ class Settings:
     user_routes_index: str = field(
         default_factory=lambda: os.getenv("USER_ROUTES_INDEX", "user_routes")
     )
+    facebook_posts_index: str = field(
+        default_factory=lambda: os.getenv("FACEBOOK_POSTS_INDEX", "facebook_posts")
+    )
+    facebook_posts_mock_path: str = field(
+        default_factory=lambda: os.getenv(
+            "FACEBOOK_POSTS_MOCK_PATH", "src/scrapper/parsed_posts.json"
+        )
+    )
     gtfs_feed_path: str = field(
         default_factory=lambda: os.getenv("GTFS_FEED_PATH", "otp_data/GTFS_KRK_A.zip")
     )

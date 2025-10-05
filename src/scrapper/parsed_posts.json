@@ -1,0 +1,52 @@
+{
+  "results": [
+    {
+      "post_id": 0,
+      "description": "Potrącenie pieszego przy Miśnieńskiej",
+      "category": "incident",
+      "stop_name": "Miśnieńska",
+      "lat": 50.094509861,
+      "lon": 20.000313472
+    },
+    {
+      "post_id": 1,
+      "description": "Wypadek na skrzyżowaniu Halszki-Witosa",
+      "category": "incident",
+      "stop_name": "Maszyce Skrzyżowanie",
+      "lat": 50.180666666,
+      "lon": 19.855789444
+    },
+    {
+      "post_id": 2,
+      "description": "kolizja autobusu z tramwajem",
+      "category": "incident",
+      "stop_name": "Plac Inwalidów",
+      "lat": 50.0691020552,
+      "lon": 19.9264636108
+    },
+    {
+      "post_id": 3,
+      "description": "Wykolejenie tramwaju przed rondem",
+      "category": "incident",
+      "stop_name": "Rondo Czyżyńskie",
+      "lat": 50.07340645775,
+      "lon": 20.0176556245
+    },
+    {
+      "post_id": 5,
+      "description": "Awaria tramwaju na rondzie",
+      "category": "incident",
+      "stop_name": "Rondo Grzegórzeckie",
+      "lat": 50.05770368,
+      "lon": 19.9590524995
+    },
+    {
+      "post_id": 8,
+      "description": "zatrzymanie na przystanku Urzędnicza",
+      "category": "traffic",
+      "stop_name": "Urzędnicza",
+      "lat": 50.0718854165,
+      "lon": 19.9195624995
+    }
+  ]
+}

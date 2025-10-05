@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.admin import incidents_admin_router
+from app.api.v1.facebook_posts import router as facebook_posts_router
 from app.api.v1.incidents import router as incidents_router
 from app.api.v1.route_preferences import router as route_preferences_router
 from app.api.v1.transport import router as transport_router
@@ -19,6 +20,7 @@ from app.core.elasticsearch import (
     close_elasticsearch_client,
     create_elasticsearch_client,
     ensure_index,
+    facebook_posts_index_mappings,
 )
 from app.services.incident_impacts import IncidentImpactService
 from app.services.transport import BikeParkingLocation, TransportGraphService
@@ -34,6 +36,11 @@ async def lifespan(app: FastAPI):
     app.state.elasticsearch = client
     await ensure_index(client, settings.elasticsearch_index)
     await ensure_index(client, settings.user_routes_index)
+    await ensure_index(
+        client,
+        settings.facebook_posts_index,
+        mappings=facebook_posts_index_mappings(),
+    )
 
     transport_service = TransportGraphService(
         feed_path=Path(settings.gtfs_feed_path),
@@ -87,6 +94,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(incidents_router, prefix="/api/v1")
+    app.include_router(facebook_posts_router, prefix="/api/v1")
     app.include_router(route_preferences_router, prefix="/api/v1")
     app.include_router(transport_router, prefix="/api/v1")
     app.include_router(incidents_admin_router)

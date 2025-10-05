@@ -1,5 +1,7 @@
 """Elasticsearch client management helpers."""
 
+from typing import Any
+
 from elasticsearch import AsyncElasticsearch
 
 from app.core.config import Settings
@@ -17,12 +19,17 @@ async def close_elasticsearch_client(client: AsyncElasticsearch) -> None:
     await client.close()
 
 
-async def ensure_index(client: AsyncElasticsearch, index_name: str) -> None:
-    """Ensure the target index exists in Elasticsearch with proper mappings."""
+async def ensure_index(
+    client: AsyncElasticsearch,
+    index_name: str,
+    *,
+    mappings: dict[str, Any] | None = None,
+) -> None:
+    """Ensure the target index exists in Elasticsearch with the provided mappings."""
 
     index_exists = await client.indices.exists(index=index_name)
     if not index_exists:
-        mappings = {
+        mapping_payload = mappings or {
             "properties": {
                 "latitude": {"type": "float"},
                 "longitude": {"type": "float"},
@@ -34,4 +41,21 @@ async def ensure_index(client: AsyncElasticsearch, index_name: str) -> None:
                 "created_at": {"type": "date"},
             }
         }
-        await client.indices.create(index=index_name, mappings=mappings)
+        await client.indices.create(index=index_name, mappings=mapping_payload)
+
+
+def facebook_posts_index_mappings() -> dict[str, Any]:
+    """Return mappings tailored for the Facebook posts index."""
+
+    return {
+        "properties": {
+            "post_id": {"type": "integer"},
+            "description": {"type": "text"},
+            "category": {"type": "keyword"},
+            "stop_name": {"type": "keyword"},
+            "latitude": {"type": "float"},
+            "longitude": {"type": "float"},
+            "source": {"type": "keyword"},
+            "scraped_at": {"type": "date"},
+        }
+    }

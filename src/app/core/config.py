@@ -19,6 +19,21 @@ class Settings:
     elasticsearch_index: str = field(
         default_factory=lambda: os.getenv("ELASTICSEARCH_INDEX", "incidents")
     )
+    gtfs_feed_path: str = field(
+        default_factory=lambda: os.getenv("GTFS_FEED_PATH", "otp_data/GTFS_KRK_A.zip")
+    )
+    walking_speed_kmh: float = field(
+        default_factory=lambda: float(os.getenv("WALKING_SPEED_KMH", "5.0"))
+    )
+    bike_speed_kmh: float = field(
+        default_factory=lambda: float(os.getenv("BIKE_SPEED_KMH", "20.0"))
+    )
+    bike_access_radius_m: float = field(
+        default_factory=lambda: float(os.getenv("BIKE_ACCESS_RADIUS_M", "150"))
+    )
+    bike_parkings_path: str | None = field(
+        default_factory=lambda: os.getenv("BIKE_PARKINGS_PATH")
+    )
 
     def elasticsearch_hosts(self) -> list[str]:
         """Return the configured Elasticsearch hosts list for the async client."""

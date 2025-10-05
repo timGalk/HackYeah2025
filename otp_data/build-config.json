@@ -1,30 +1,12 @@
 {
-    "streetGraph": {
-      "includes": [
-        {
-          "type": "osm",
-          "uri": "file:./otp_data/krk.osm.pbf"
-        }
-      ]
-    },
-    "transit": {
-      "feeds": [
-        {
-          "type": "gtfs",
-          "uri": "file:./otp_data/GTFS_KRK_A.zip",
-          "feedId": "KRK_A" 
-        },
-        {
-          "type": "gtfs",
-          "uri": "file:./otp_data/GTFS_KRK_M.zip",
-          "feedId": "KRK_M" 
-        },
-        {
-          "type": "gtfs",
-          "uri": "file:./otp_data/GTFS_KRK_T.zip",
-          "feedId": "KRK_T"
-        }
-      ]
-    }
-  }
-  
+  "embedRouterConfig": false,
+  "transitModelTimeZone": "Europe/Warsaw",
+  "osm": [
+    { "source": "krk.osm.pbf" }
+  ],
+  "transitFeeds": [
+    { "type": "gtfs", "source": "GTFS_KRK_A.zip", "feedId": "KRK_A" },
+    { "type": "gtfs", "source": "GTFS_KRK_M.zip", "feedId": "KRK_M" },
+    { "type": "gtfs", "source": "GTFS_KRK_T.zip", "feedId": "KRK_T" }
+  ]
+}

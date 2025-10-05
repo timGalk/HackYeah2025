@@ -13,6 +13,7 @@ class IncidentCreate(BaseModel):
     description: str = Field(..., min_length=1, max_length=2000)
     category: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=1, max_length=100)
+    approved: bool = Field(default=False)
 
     model_config = {
         "extra": "forbid",

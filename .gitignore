@@ -218,3 +218,6 @@ __marimo__/
 
 # MacOS
 .DS_Store
+
+# OTP data
+otp_data/

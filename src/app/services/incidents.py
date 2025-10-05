@@ -1,5 +1,6 @@
 """Business logic for incident workflows."""
 
+import math
 from datetime import datetime
 from typing import Any, Sequence
 
@@ -85,20 +86,24 @@ class IncidentService:
         if edge is None:
             return IncidentDocument(**base_data)
 
-        edge_key = edge.get("key")
-        route_id = edge.get("route_id")
+        edge_key = self._normalize_optional_string(edge.get("key"))
+        route_id = self._normalize_optional_string(edge.get("route_id"))
         impacted_routes = [route_id] if isinstance(route_id, str) and route_id else []
+
+        trip_id = self._normalize_optional_string(edge.get("trip_id"))
+        route_short_name = self._normalize_optional_string(edge.get("route_short_name"))
+        route_long_name = self._normalize_optional_string(edge.get("route_long_name"))
 
         return IncidentDocument(
             **base_data,
             edge_mode=edge.get("mode"),
             edge_source=edge.get("source"),
             edge_target=edge.get("target"),
-            edge_key=str(edge_key) if edge_key is not None else None,
-            trip_id=edge.get("trip_id"),
+            edge_key=edge_key,
+            trip_id=trip_id,
             route_id=route_id,
-            route_short_name=edge.get("route_short_name"),
-            route_long_name=edge.get("route_long_name"),
+            route_short_name=route_short_name,
+            route_long_name=route_long_name,
             impacted_routes=impacted_routes,
         )
 
@@ -112,3 +117,15 @@ class IncidentService:
             )
         except ValueError:
             return None
+
+    @staticmethod
+    def _normalize_optional_string(value: Any) -> str | None:
+        """Return a clean string representation or ``None`` when not available."""
+
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return value
+        if isinstance(value, float) and math.isnan(value):
+            return None
+        return str(value)

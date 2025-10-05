@@ -9,7 +9,7 @@ from contextlib import suppress
 from typing import Any
 
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 
 from app.services.transport import TransportGraphService
 
@@ -63,7 +63,8 @@ class IncidentImpactService:
         return list(self._modified_edges)
 
     async def _run(self) -> None:
-        async with AsyncClient(app=self._app, base_url="http://internal.app") as client:
+        transport = ASGITransport(app=self._app)
+        async with AsyncClient(transport=transport, base_url="http://internal.app") as client:
             while True:
                 try:
                     incidents = await self._fetch_incidents(client)

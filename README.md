@@ -377,6 +377,10 @@ Approve the referenced incident and redirect back to the admin panel. Incidents 
 approved are treated as no-ops. Granting approval increases the reporter's social score
 by 10 points the first time an incident is approved.
 
+**User Credit Reward**: When an incident is approved, the system checks if the incident's 
+`username` matches a `name` in the Supabase `users` table. If a match is found, the user's 
+`credits` value is incremented by 5 points as a reward for reporting valid incidents.
+
 ### POST /admin/incidents/{incident_id}/revoke
 Revoke approval for the referenced incident and redirect back to the admin panel. If the
 incident was already unapproved, the request is a no-op.
@@ -404,6 +408,8 @@ Environment variables can adjust runtime behaviour:
 - `BIKE_ACCESS_RADIUS_M` – Radius in metres to flag a stop as bike-accessible (default `150`).
 - `BIKE_PARKINGS_PATH` – Optional JSON/GeoJSON file describing bike parking locations.
 - `INCIDENT_POLL_INTERVAL_SECONDS` – Interval for polling incidents to update transport graphs (default `60`).
+- `SUPABASE_URL` – Supabase project URL for user management and credit tracking.
+- `SUPABASE_KEY` – Supabase anonymous key for database access.
 
 ## Kibana Access
 

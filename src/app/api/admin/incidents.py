@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import html
+import logging
 from datetime import datetime
 from typing import Iterable
 
 from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
+from dotenv import load_dotenv
+import os
+from supabase import Client, create_client
 
 from app.api.dependencies import get_facebook_post_service, get_incident_service
 from app.schemas.facebook_posts import FacebookPostRead
@@ -16,6 +20,13 @@ from app.schemas.incidents import IncidentRead
 from app.services.facebook_posts import FacebookPostService
 from app.services.incidents import IncidentService
 
+load_dotenv()
+supabase: Client = create_client(
+    os.getenv("SUPABASE_URL"),
+    os.getenv("SUPABASE_KEY"),
+)
+
+logger = logging.getLogger(__name__)
 
 class IncidentPurgeRequest(BaseModel):
     """Payload describing which incident records should be removed."""
@@ -68,6 +79,32 @@ async def approve_incident(
 ) -> RedirectResponse:
     """Approve an incident and redirect back to the admin panel."""
 
+    # Get incident details to retrieve the username
+    all_incidents = await service.get_all_incidents()
+    incident = next((inc for inc in all_incidents.incidents if inc.id == incident_id), None)
+    
+    # If incident found and has a username, try to increment user credits
+    if incident and incident.username:
+        try:
+            # Query users table to find matching name
+            users_response = supabase.table("users").select("*").eq("name", incident.username).execute()
+            
+            if users_response.data and len(users_response.data) > 0:
+                user = users_response.data[0]
+                user_id = user.get("id")
+                current_credits = user.get("credit", 0)
+                
+                # Increment credits by 5
+                new_credits = current_credits + 5
+                supabase.table("users").update({"credit": new_credits}).eq("id", user_id).execute()
+                logger.info(
+                    f"Incremented credits for user {incident.username} "
+                    f"(id: {user_id}) from {current_credits} to {new_credits}"
+                )
+        except Exception as e:
+            # Log the error but continue with incident approval
+            logger.error(f"Error updating user credits for {incident.username}: {e}")
+    
     success = await service.approve_incident(incident_id)
     status_fragment = "approved" if success else "not_found"
     redirect_target = router.url_path_for("admin_incidents_panel") + f"?status={status_fragment}"

@@ -9,6 +9,8 @@ services:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - ELASTICSEARCH_INDEX=incidents
       - GTFS_FEED_PATH=otp_data/GTFS_KRK_A.zip
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_KEY=${SUPABASE_KEY}
     depends_on:
       elasticsearch:
         condition: service_healthy

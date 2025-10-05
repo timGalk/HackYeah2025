@@ -259,7 +259,8 @@ regardless of reporter score, and revoking the approval restores social-score ga
 
 ### POST /admin/incidents/{incident_id}/approve
 Approve the referenced incident and redirect back to the admin panel. Incidents already
-approved are treated as no-ops.
+approved are treated as no-ops. Granting approval increases the reporter's social score
+by 10 points the first time an incident is approved.
 
 ### POST /admin/incidents/{incident_id}/revoke
 Revoke approval for the referenced incident and redirect back to the admin panel. If the

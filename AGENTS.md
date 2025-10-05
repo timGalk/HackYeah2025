@@ -24,7 +24,9 @@ This file is the single source of truth for how automated agents (and human cont
 	•	Imports: absolute where possible; group stdlib / third-party / local with blank lines.
 	•	Logging: logging module; no print in library code. Use structured messages.
 	•	Dependency managagement: use uv whenever possible, inside dockerfiles too.
+	•	Run code with uv run not python command directly.
 	•	Docs: add definition of every endpoint to README.md so user knows what kind of request should be sent.
+	•	Prepare testing scripts in scripts/ but don't create pytest tests.
 
 
 2.2 FastAPI Conventions

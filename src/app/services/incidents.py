@@ -18,6 +18,8 @@ from app.services.transport import TransportGraphService
 class IncidentService:
     """Coordinate incident ingestion workflows."""
 
+    APPROVAL_REWARD_POINTS = 10.0
+
     def __init__(
         self,
         *,
@@ -81,7 +83,10 @@ class IncidentService:
     async def approve_incident(self, incident_id: str) -> bool:
         """Mark the incident identified by the given id as approved."""
 
-        return await self._repository.approve_incident(incident_id)
+        return await self._repository.approve_incident(
+            incident_id,
+            reward_points=self.APPROVAL_REWARD_POINTS,
+        )
 
     async def revoke_incident_approval(self, incident_id: str) -> bool:
         """Remove approval from the incident identified by the given id."""

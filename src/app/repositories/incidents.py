@@ -106,10 +106,33 @@ class IncidentRepository:
         }
         return [item async for item in self._scan(body=body)]
 
-    async def approve_incident(self, incident_id: str) -> bool:
-        """Mark an incident as approved. Returns False if it was not found."""
+    async def approve_incident(self, incident_id: str, *, reward_points: float = 0.0) -> bool:
+        """Mark an incident as approved, optionally rewarding the reporter."""
 
-        return await self._set_incident_approval(incident_id=incident_id, approved=True)
+        try:
+            document = await self._client.get(index=self._index_name, id=incident_id)
+        except NotFoundError:
+            return False
+
+        source = dict(document.get("_source", {}))
+        if bool(source.get("approved")):
+            return True
+
+        reward = max(float(reward_points), 0.0)
+        current_score = self._coerce_social_score(source.get("reporter_social_score"))
+        updated_score = current_score + reward if reward > 0 else current_score
+
+        source["approved"] = True
+        source["reporter_social_score"] = updated_score
+
+        response = await self._client.index(
+            index=self._index_name,
+            id=incident_id,
+            document=source,
+            refresh="wait_for",
+        )
+        result = response.get("result")
+        return result in {"updated", "created"}
 
     async def unapprove_incident(self, incident_id: str) -> bool:
         """Revoke approval for an incident if it exists."""
@@ -177,6 +200,21 @@ class IncidentRepository:
             preserve_order=True,
         ):
             yield self._hydrate_hit(hit)
+
+    @staticmethod
+    def _coerce_social_score(raw: Any) -> float:
+        """Convert stored social score values into a sanitized float."""
+
+        if raw is None:
+            return 0.0
+        if isinstance(raw, (int, float)):
+            candidate = float(raw)
+        else:
+            try:
+                candidate = float(str(raw))
+            except (TypeError, ValueError):
+                return 0.0
+        return candidate if candidate >= 0 else 0.0
 
     @staticmethod
     def _hydrate_hit(hit: dict[str, Any]) -> dict[str, Any]:

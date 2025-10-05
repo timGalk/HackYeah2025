@@ -19,7 +19,10 @@ EdgeKey = tuple[str, str, str, str | int]
 class IncidentImpactService:
     """Poll incidents and update transport graphs according to delay factors."""
 
-    INCIDENT_DELAY_MAPPING: dict[str, float] = {}
+    INCIDENT_DELAY_MAPPING: dict[str, float] = {
+        "Crush": float("inf"),
+        "Traffic": 1.5,
+    }
 
     def __init__(
         self,

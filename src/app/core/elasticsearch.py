@@ -18,8 +18,20 @@ async def close_elasticsearch_client(client: AsyncElasticsearch) -> None:
 
 
 async def ensure_index(client: AsyncElasticsearch, index_name: str) -> None:
-    """Ensure the target index exists in Elasticsearch."""
+    """Ensure the target index exists in Elasticsearch with proper mappings."""
 
     index_exists = await client.indices.exists(index=index_name)
     if not index_exists:
-        await client.indices.create(index=index_name)
+        mappings = {
+            "properties": {
+                "latitude": {"type": "float"},
+                "longitude": {"type": "float"},
+                "description": {"type": "text"},
+                "category": {"type": "keyword"},
+                "username": {"type": "keyword"},
+                "approved": {"type": "boolean"},
+                "reporter_social_score": {"type": "float"},
+                "created_at": {"type": "date"},
+            }
+        }
+        await client.indices.create(index=index_name, mappings=mappings)

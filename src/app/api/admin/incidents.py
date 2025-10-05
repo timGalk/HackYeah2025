@@ -112,7 +112,7 @@ async def purge_incidents(
     return RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
 
 
-@router.delete("", include_in_schema=True, response_model=IncidentPurgeResponse, status_code=status.HTTP_200_OK)
+@router.delete("/api", include_in_schema=True, response_model=IncidentPurgeResponse, status_code=status.HTTP_200_OK)
 async def purge_incidents_api(
     payload: IncidentPurgeRequest = Body(default_factory=IncidentPurgeRequest),
     service: IncidentService = Depends(get_incident_service),

@@ -10,6 +10,7 @@ from typing import Iterable
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin import incidents_admin_router
 from app.api.v1.incidents import router as incidents_router
 from app.api.v1.route_preferences import router as route_preferences_router
 from app.api.v1.transport import router as transport_router
@@ -66,10 +67,15 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
 
     settings = get_settings()
+    
+    # Use ORJSONResponse which natively handles infinity values in JSON
+    from fastapi.responses import ORJSONResponse
+    
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
         lifespan=lifespan,
+        default_response_class=ORJSONResponse,
     )
 
     app.add_middleware(
@@ -83,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(incidents_router, prefix="/api/v1")
     app.include_router(route_preferences_router, prefix="/api/v1")
     app.include_router(transport_router, prefix="/api/v1")
+    app.include_router(incidents_admin_router)
     return app
 
 

@@ -22,10 +22,11 @@ Submit a new incident report.
   {
     "latitude": 52.2297,
     "longitude": 21.0122,
-    "description": "Road blocked by fallen tree",
-    "category": "infrastructure",
+    "description": "Heavy traffic congestion on main road",
+    "category": "Traffic",
     "username": "janedoe",
-    "approved": false
+    "approved": false,
+    "reporter_social_score": 12.5
   }
   ```
 - **Success Response** `201 Created`
@@ -34,6 +35,15 @@ Submit a new incident report.
     "incident_id": "abc123"
   }
   ```
+- **Valid Categories and Impact**
+  - `Traffic` – Applies a 1.5× edge weight multiplier; requires combined `reporter_social_score` ≥ 50.0 to activate (unless `approved: true`).
+  - `Crush` – Applies an extremely large edge weight multiplier (effectively blocks the route); activates immediately regardless of social score.
+  - Other category values are accepted but do not influence transport graphs.
+- **Notes**
+  - Unapproved incidents influence transport edges only when the combined
+    `reporter_social_score` of reporters within the same category exceeds the configured
+    acceptance threshold.
+  - Approved incidents (`approved: true`) bypass the social score threshold and apply their multiplier immediately.
 
 ### GET /api/v1/incidents
 Return all incidents ordered by their creation timestamp.
@@ -240,6 +250,30 @@ Streams a snapshot followed by incremental edge updates, enabling live visualisa
 ### GET /api/v1/transport/visualizer
 Serves an interactive HTML dashboard for exploring the transport graph and issuing
 edge updates in real time.
+
+### GET /admin/incidents
+Render a lightweight HTML admin panel listing all incidents with their current approval
+state. Each entry displays key details alongside an action button to approve pending
+incidents or revoke approval. Approved incidents immediately affect transport edges
+regardless of reporter score, and revoking the approval restores social-score gating.
+
+### POST /admin/incidents/{incident_id}/approve
+Approve the referenced incident and redirect back to the admin panel. Incidents already
+approved are treated as no-ops.
+
+### POST /admin/incidents/{incident_id}/revoke
+Revoke approval for the referenced incident and redirect back to the admin panel. If the
+incident was already unapproved, the request is a no-op.
+
+### POST /admin/incidents/purge
+Remove incidents either across the entire index or within a supplied time range. When
+`start` and `end` fields are supplied (ISO8601), only incidents within that interval are
+deleted; otherwise the entire index is cleared.
+
+### DELETE /admin/incidents/api
+Programmatic equivalent of the purge form. Accepts an optional JSON body with `start`
+and `end` properties (`ISO8601` strings). When omitted, all incidents are deleted. The
+response contains the number of documents removed and the applied scope.
 
 ## Configuration
 

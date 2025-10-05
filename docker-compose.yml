@@ -8,6 +8,7 @@ services:
     environment:
       - ELASTICSEARCH_URL=http://elasticsearch:9200
       - ELASTICSEARCH_INDEX=incidents
+      - GTFS_FEED_PATH=otp_data/GTFS_KRK_A.zip
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -33,6 +34,7 @@ services:
     image: docker.elastic.co/kibana/kibana:8.12.1
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - xpack.security.enabled=false
     ports:
       - "5601:5601"
     depends_on:

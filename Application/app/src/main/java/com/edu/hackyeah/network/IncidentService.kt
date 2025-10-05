@@ -4,7 +4,9 @@ import com.google.gson.annotations.SerializedName
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
+import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 
 data class IncidentRequest(
     @SerializedName("latitude") val latitude: Double,
@@ -14,14 +16,37 @@ data class IncidentRequest(
     @SerializedName("username") val username: String
 )
 
+// Wrapper for list responses: { "incidents": [ ... ] }
+data class IncidentsListResponse(
+    @SerializedName("incidents") val incidents: List<IncidentItem>
+)
+
 data class IncidentResponse(
     @SerializedName("id") val id: String?,
     @SerializedName("message") val message: String?
 )
 
+// Item returned by GET endpoints
+data class IncidentItem(
+    @SerializedName("id") val id: String? = null,
+    @SerializedName("category") val category: String? = null,
+    @SerializedName("description") val description: String? = null,
+    @SerializedName("latitude") val latitude: Double? = null,
+    @SerializedName("longitude") val longitude: Double? = null,
+    @SerializedName("username") val username: String? = null,
+    @SerializedName("created_at") val createdAt: String? = null,
+    @SerializedName("approved") val approved: Boolean? = null
+)
+
 interface IncidentApi {
     @POST("api/v1/incidents")
     suspend fun reportIncident(@Body request: IncidentRequest): IncidentResponse
+
+    @GET("api/v1/incidents")
+    suspend fun getAllIncidents(): IncidentsListResponse
+
+    @GET("api/v1/incidents/latest")
+    suspend fun getLatestIncidents(@Query("limit") limit: Int = 10): IncidentsListResponse
 }
 
 object IncidentService {
@@ -58,6 +83,29 @@ object IncidentService {
             Result.success(response)
         } catch (e: Exception) {
             println("Error reporting incident: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchAllIncidents(): Result<List<IncidentItem>> {
+        return try {
+            val resp = api.getAllIncidents()
+            Result.success(resp.incidents)
+        } catch (e: Exception) {
+            println("Error fetching all incidents: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchLatestIncidents(limit: Int = 10): Result<List<IncidentItem>> {
+        val safeLimit = limit.coerceIn(1, 1000)
+        return try {
+            val resp = api.getLatestIncidents(safeLimit)
+            Result.success(resp.incidents)
+        } catch (e: Exception) {
+            println("Error fetching latest incidents: ${e.message}")
             e.printStackTrace()
             Result.failure(e)
         }

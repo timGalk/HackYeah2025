@@ -264,6 +264,10 @@ class TransportGraphService:
         feed = gk.read_feed(str(feed_path), dist_units="km")
         feed = self._narrow_feed_to_single_date(feed)
 
+        if feed.stops is None or feed.stops.empty:
+            msg = f"GTFS feed at {feed_path} has no stops data after date filtering."
+            raise ValueError(msg)
+
         stops_df = feed.stops[["stop_id", "stop_lat", "stop_lon"]].copy()
         nodes_payload = {
             row.stop_id: {"latitude": float(row.stop_lat), "longitude": float(row.stop_lon)}
@@ -283,7 +287,10 @@ class TransportGraphService:
 
         available_dates = feed.get_dates()
         if available_dates:
-            return feed.restrict_to_dates([available_dates[0]])
+            narrowed = feed.restrict_to_dates([available_dates[0]])
+            # Validate that the narrowed feed still has required data
+            if narrowed.stops is not None and not narrowed.stops.empty:
+                return narrowed
         return feed
 
     def _build_transit_graphs(

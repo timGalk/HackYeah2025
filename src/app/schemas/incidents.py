@@ -14,6 +14,11 @@ class IncidentCreate(BaseModel):
     category: str = Field(..., min_length=1, max_length=100)
     username: str = Field(..., min_length=1, max_length=100)
     approved: bool = Field(default=False)
+    reporter_social_score: float = Field(
+        default=0.0,
+        ge=0,
+        description="Trust score associated with the reporting user.",
+    )
 
     model_config = {
         "extra": "forbid",
@@ -38,3 +43,15 @@ class IncidentCreatedResponse(BaseModel):
             ]
         }
     }
+
+
+class IncidentRead(IncidentDocument):
+    """Representation of an incident retrieved from persistence."""
+
+    id: str = Field(..., description="Elasticsearch document identifier.")
+
+
+class IncidentListResponse(BaseModel):
+    """Container for collections of incidents returned by query endpoints."""
+
+    incidents: list[IncidentRead]

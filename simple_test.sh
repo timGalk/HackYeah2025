@@ -14,7 +14,8 @@ curl -X POST "$BASE_URL/api/v1/incidents" \
     "longitude": 21.0122,
     "description": "Broken traffic light",
     "category": "Traffic",
-    "username": "test_user"
+    "username": "test_user",
+    "reporter_social_score": 12.5
   }'
 
 echo -e "\n\n"
@@ -29,7 +30,8 @@ curl -X POST "$BASE_URL/api/v1/incidents" \
     "description": "Tram wywroclawiled itself",
     "category": "Infrastructure",
     "username": "city_reporter",
-    "approved": false
+    "approved": false,
+    "reporter_social_score": 8.0
   }'
 
 echo -e "\n\n"
@@ -43,7 +45,8 @@ curl -X POST "$BASE_URL/api/v1/incidents" \
     "longitude": 21.0122,
     "description": "Test incident",
     "category": "Test",
-    "username": "test_user"
+    "username": "test_user",
+    "reporter_social_score": 0.5
   }'
 
 echo -e "\n\nDone!"

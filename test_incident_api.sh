@@ -99,16 +99,18 @@ main() {
         "longitude": 21.0122,
         "description": "Broken traffic light at intersection",
         "category": "Traffic",
-        "username": "test_user"
+        "username": "test_user",
+        "reporter_social_score": 12.5
     }' "201"
-    
+
     # Test 2: Another valid incident
     test_create_incident "Another valid incident" '{
         "latitude": 50.0755,
         "longitude": 14.4378,
         "description": "Pothole on main street causing traffic issues",
         "category": "Infrastructure",
-        "username": "city_reporter"
+        "username": "city_reporter",
+        "reporter_social_score": 8.0
     }' "201"
     
     # Test 3: Invalid latitude (too high)
@@ -117,7 +119,8 @@ main() {
         "longitude": 21.0122,
         "description": "Test incident",
         "category": "Test",
-        "username": "test_user"
+        "username": "test_user",
+        "reporter_social_score": 0.5
     }' "422"
     
     # Test 4: Invalid longitude (too low)
@@ -126,7 +129,8 @@ main() {
         "longitude": -185.0,
         "description": "Test incident",
         "category": "Test",
-        "username": "test_user"
+        "username": "test_user",
+        "reporter_social_score": 0.5
     }' "422"
     
     # Test 5: Missing required field
@@ -134,7 +138,8 @@ main() {
         "latitude": 52.2297,
         "longitude": 21.0122,
         "category": "Test",
-        "username": "test_user"
+        "username": "test_user",
+        "reporter_social_score": 1.5
     }' "422"
     
     # Test 6: Empty description
@@ -143,7 +148,8 @@ main() {
         "longitude": 21.0122,
         "description": "",
         "category": "Test",
-        "username": "test_user"
+        "username": "test_user",
+        "reporter_social_score": 1.5
     }' "422"
     
     # Test 7: Description too long
@@ -152,7 +158,8 @@ main() {
         "longitude": 21.0122,
         "description": "'$(printf 'a%.0s' {1..2001})'",
         "category": "Test",
-        "username": "test_user"
+        "username": "test_user",
+        "reporter_social_score": 1.5
     }' "422"
     
     # Test 8: Extra field (should be rejected)
@@ -162,6 +169,7 @@ main() {
         "description": "Test incident",
         "category": "Test",
         "username": "test_user",
+        "reporter_social_score": 2.0,
         "extra_field": "should_not_be_allowed"
     }' "422"
     

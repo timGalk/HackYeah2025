@@ -11,24 +11,27 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +40,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.edu.hackyeah.network.IncidentService
+import com.edu.hackyeah.network.IncidentItem
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class Incident(
     val type: String,
@@ -49,135 +56,111 @@ data class Incident(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun IncidentsScreen() {
-    // Sample incidents data
-    val incidents = listOf(
-        Incident(
-            type = "Wypadek",
-            location = "A4, Kraków - Katowice",
-            description = "Kolizja 2 pojazdów, ruch ograniczony",
-            time = "5 min temu",
-            icon = Icons.Default.Warning,
-            color = Color(0xFFD32F2F)
-        ),
-        Incident(
-            type = "Korek",
-            location = "Rondo Mogilskie, Kraków",
-            description = "Duże natężenie ruchu",
-            time = "15 min temu",
-            icon = Icons.Default.Info,
-            color = Color(0xFFF57C00)
-        ),
-        Incident(
-            type = "Roboty drogowe",
-            location = "ul. Wielicka, Kraków",
-            description = "Remont jezdni, zwężenie pasa",
-            time = "1 godz. temu",
-            icon = Icons.Default.Build,
-            color = Color(0xFFFBC02D)
-        ),
-        Incident(
-            type = "Ostrzeżenie",
-            location = "S7, Chyżne - granica",
-            description = "Gołoledź na drodze",
-            time = "2 godz. temu",
-            icon = Icons.Default.Warning,
-            color = Color(0xFF1976D2)
-        )
-    )
+fun IncidentsScreen(outerPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+    var showReportDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var incidents by remember { mutableStateOf(listOf<Incident>()) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Incydenty drogowe",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1976D2),
-                    titleContentColor = Color.White
-                )
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { /* TODO: Open report incident dialog */ },
-                containerColor = Color(0xFF1976D2),
-                contentColor = Color.White
-            ) {
-                Icon(
-                    Icons.Default.Add,
-                    contentDescription = "Zgłoś incydent",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+    // Load incidents from REST API
+    LaunchedEffect(Unit) {
+        isLoading = true
+        errorMessage = null
+        val result = withContext(Dispatchers.IO) { IncidentService.fetchLatestIncidents(limit = 20) }
+        result.onSuccess { list ->
+            incidents = list.mapNotNull { it.toUiIncident() }
+            isLoading = false
+        }.onFailure { e ->
+            errorMessage = e.message ?: "Nie udało się pobrać incydentów"
+            isLoading = false
         }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF5F5F5))
-        ) {
-            // Header stats
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    StatItem("Aktywne", "${incidents.size}")
-                    StatItem("Dzisiaj", "12")
-                    StatItem("Twoje", "3")
-                }
+    }
+
+    if (showReportDialog) {
+        ReportIncidentDialog(
+            onDismiss = { showReportDialog = false },
+            onSuccess = {
+                // Odśwież listę incydentów
             }
+        )
+    }
 
-            // Incidents list
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(incidents.size) { index ->
-                    IncidentCard(incident = incidents[index])
-                }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(outerPadding)
+            .background(Color(0xFFF5F5F5))
+            .padding(16.dp)
+    ) {
+        // Simple Add Button
+        Button(
+            onClick = { showReportDialog = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color(0xFF1976D2)
+            ),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Dodaj",
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                "Zgłoś incydent",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
 
-                // Bottom spacing
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // State rendering
+        when {
+            isLoading -> {
+                Text(text = "Ładowanie incydentów...", color = Color(0xFF757575))
+            }
+            errorMessage != null -> {
+                Text(text = errorMessage!!, color = Color(0xFFD32F2F))
+            }
+            else -> {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(incidents.size) { index ->
+                        IncidentCard(incident = incidents[index])
+                    }
                 }
             }
         }
     }
 }
 
-@Composable
-fun StatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color(0xFF1976D2)
-        )
-        Text(
-            text = label,
-            fontSize = 12.sp,
-            color = Color(0xFF757575)
-        )
+// Map API model to UI model
+private fun IncidentItem.toUiIncident(): Incident? {
+    val cat = (category ?: "").lowercase()
+    val (icon, color, typeLabel) = when (cat) {
+        "wypadek_drogowy", "accident", "crash" -> Triple(Icons.Default.Warning, Color(0xFFD32F2F), "Wypadek drogowy")
+        "korek", "traffic", "jam" -> Triple(Icons.Default.Info, Color(0xFFF57C00), "Korek")
+        else -> Triple(Icons.Default.Info, Color(0xFF1976D2), category ?: "Zgłoszenie")
     }
+    val locText = if (latitude != null && longitude != null) {
+        "${"%.5f".format(latitude)}, ${"%.5f".format(longitude)}"
+    } else {
+        "Brak lokalizacji"
+    }
+    return Incident(
+        type = typeLabel,
+        location = locText,
+        description = description ?: "",
+        time = createdAt ?: "",
+        icon = icon,
+        color = color
+    )
 }
 
 @Composable

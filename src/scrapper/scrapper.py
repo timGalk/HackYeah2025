@@ -25,8 +25,8 @@ def find_stop(query: str, stops_df: pd.DataFrame):
         stop = stops_df[stops_df["stop_name"] == match[0]].iloc[0]
         return {
             "matched_name": stop["stop_name"],
-            "lat": stop["stop_lat"],
-            "lon": stop["stop_lon"]
+            "latitude": stop["stop_lat"],
+            "longitude": stop["stop_lon"]
         }
     else:
         return None

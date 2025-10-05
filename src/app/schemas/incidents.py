@@ -38,3 +38,15 @@ class IncidentCreatedResponse(BaseModel):
             ]
         }
     }
+
+
+class IncidentRead(IncidentDocument):
+    """Representation of an incident retrieved from persistence."""
+
+    id: str = Field(..., description="Elasticsearch document identifier.")
+
+
+class IncidentListResponse(BaseModel):
+    """Container for collections of incidents returned by query endpoints."""
+
+    incidents: list[IncidentRead]

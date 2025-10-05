@@ -3,7 +3,7 @@
   <component name="CopilotDiffPersistence">
     <option name="pendingDiffs">
       <map>
-        <entry key="$PROJECT_DIR$/app/src/main/java/com/edu/hackyeah/MainActivity.kt">
+        <entry key="$PROJECT_DIR$/FIX_STOP_NAMES.md">
           <value>
             <PendingDiffInfo>
               <option name="filePath" value="$PROJECT_DIR$/app/src/main/java/com/edu/hackyeah/MainActivity.kt" />

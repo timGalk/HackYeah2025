@@ -25,10 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.edu.hackyeah.location.DestinationPoint
 import com.edu.hackyeah.location.LocationHelper
 import com.edu.hackyeah.location.LocationPoint
+import com.edu.hackyeah.location.TransportRouteResult
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -55,266 +53,235 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RouteDetailsView(
-    destinationPoints: List<DestinationPoint>,
+    routeResult: TransportRouteResult,
     onBackClick: () -> Unit
 ) {
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     val context = LocalContext.current
     val locationHelper = remember { LocationHelper(context) }
 
-    var locationPoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
-    var routePoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
+    var defaultLocationPoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
+    var suggestedLocationPoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
+    var defaultRoutePoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
+    var suggestedRoutePoints by remember { mutableStateOf<List<LocationPoint>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Fetch geolocation for all stops and build route
-    LaunchedEffect(destinationPoints) {
+    // Fetch geolocation for all stops and build routes
+    LaunchedEffect(routeResult) {
         isLoading = true
 
-        // Geocode all destination points in parallel
         coroutineScope {
-            val geocodedPoints = destinationPoints.map { point ->
-                async {
-                    locationHelper.getCoordinatesFromAddress(point.name)
-                }
+            // Geocode points for default path
+            val geocodedDefaultPoints = routeResult.defaultPath.map { point ->
+                async { locationHelper.getCoordinatesFromAddress(point.name) }
             }.awaitAll().filterNotNull()
+            defaultLocationPoints = geocodedDefaultPoints
 
-            locationPoints = geocodedPoints
+            // Geocode points for suggested path
+            val geocodedSuggestedPoints = routeResult.suggestedPath?.map { point ->
+                async { locationHelper.getCoordinatesFromAddress(point.name) }
+            }?.awaitAll()?.filterNotNull() ?: emptyList()
+            suggestedLocationPoints = geocodedSuggestedPoints
 
-            // Build route through all points
-            if (geocodedPoints.size >= 2) {
-                val allRoutePoints = mutableListOf<LocationPoint>()
+            // Build route for default path
+            if (geocodedDefaultPoints.size >= 2) {
+                defaultRoutePoints = buildRoute(geocodedDefaultPoints, locationHelper)
+            }
 
-                // Get route segments between consecutive stops
-                for (i in 0 until geocodedPoints.size - 1) {
-                    val start = geocodedPoints[i]
-                    val end = geocodedPoints[i + 1]
-
-                    // Try OSRM first, but don't block on it
-                    val segmentPoints = try {
-                        locationHelper.getRoutePoints(
-                            startPoint = start,
-                            endPoint = end,
-                            profile = "driving"
-                        )
-                    } catch (e: Exception) {
-                        println("OSRM failed for segment $i: ${e.message}")
-                        null
-                    }
-
-                    if (segmentPoints != null && segmentPoints.isNotEmpty()) {
-                        // Add segment points, avoiding duplicates at connection points
-                        if (allRoutePoints.isEmpty()) {
-                            allRoutePoints.addAll(segmentPoints)
-                        } else {
-                            // Skip first point of segment as it's the same as last point of previous segment
-                            allRoutePoints.addAll(segmentPoints.drop(1))
-                        }
-                    } else {
-                        // Fallback: create simple line with interpolated points for smoother rendering
-                        println("Using fallback for segment $i")
-                        if (allRoutePoints.isEmpty()) {
-                            allRoutePoints.add(start)
-                        }
-
-                        // Add some intermediate points for smoother line (divide segment into 3 parts)
-                        val latDiff = (end.latitude - start.latitude) / 3
-                        val lonDiff = (end.longitude - start.longitude) / 3
-
-                        allRoutePoints.add(
-                            LocationPoint(
-                                start.latitude + latDiff,
-                                start.longitude + lonDiff,
-                                ""
-                            )
-                        )
-                        allRoutePoints.add(
-                            LocationPoint(
-                                start.latitude + 2 * latDiff,
-                                start.longitude + 2 * lonDiff,
-                                ""
-                            )
-                        )
-                        allRoutePoints.add(end)
-                    }
-                }
-
-                routePoints = allRoutePoints
+            // Build route for suggested path
+            if (geocodedSuggestedPoints.size >= 2) {
+                suggestedRoutePoints = buildRoute(geocodedSuggestedPoints, locationHelper)
             }
 
             isLoading = false
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Szczegóły trasy",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Wróć",
-                            tint = Color.White
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFF1976D2),
-                    titleContentColor = Color.White
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F5F5))
+    ) {
+        // Back button
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            IconButton(
+                onClick = onBackClick,
+                modifier = Modifier.align(Alignment.CenterStart)
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Wróć",
+                    tint = Color(0xFF1976D2),
+                    modifier = Modifier.size(28.dp)
                 )
-            )
+            }
         }
-    ) { paddingValues ->
-        Column(
+
+        // Map Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(300.dp)
+                .padding(horizontal = 16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF1976D2)
+                    )
+                } else if (defaultLocationPoints.isNotEmpty()) {
+                    Map(
+                        modifier = Modifier.fillMaxSize(),
+                        initialZoom = 12.0,
+                        enableMyLocation = false,
+                        userMarkers = listOfNotNull(defaultLocationPoints.firstOrNull(), defaultLocationPoints.lastOrNull()),
+                        defaultRoutePoints = defaultRoutePoints,
+                        suggestedRoutePoints = suggestedRoutePoints,
+                        incidentPoints = routeResult.incidents,
+                        onMapReady = { }
+                    )
+                } else {
+                    Text(
+                        text = "Nie udało się załadować mapy",
+                        color = Color(0xFF757575)
+                    )
+                }
+            }
+        }
+
+        // Route Summary Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Całkowity czas",
+                        fontSize = 12.sp,
+                        color = Color(0xFF757575)
+                    )
+                    val totalDuration = Duration.between(
+                        routeResult.defaultPath.first().arrivalTime,
+                        routeResult.defaultPath.last().arrivalTime
+                    )
+                    val hours = totalDuration.toHours()
+                    val minutes = totalDuration.toMinutes() % 60
+                    Text(
+                        text = if (hours > 0) "${hours}h ${minutes}min" else "${minutes}min",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Przystanki",
+                        fontSize = 12.sp,
+                        color = Color(0xFF757575)
+                    )
+                    Text(
+                        text = "${routeResult.defaultPath.size}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "Przyjazd",
+                        fontSize = 12.sp,
+                        color = Color(0xFF757575)
+                    )
+                    Text(
+                        text = routeResult.defaultPath.last().arrivalTime
+                            .atZone(java.time.ZoneId.systemDefault())
+                            .format(timeFormatter),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1976D2)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Stops List
+        Text(
+            text = "Przystanki po drodze",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = Color(0xFF212121)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-                .background(Color(0xFFF5F5F5))
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Map Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .padding(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            color = Color(0xFF1976D2)
-                        )
-                    } else if (locationPoints.isNotEmpty()) {
-                        Map(
-                            modifier = Modifier.fillMaxSize(),
-                            initialZoom = 12.0,
-                            enableMyLocation = false,
-                            userMarkers = locationPoints,
-                            routePoints = routePoints,
-                            onMapReady = { }
-                        )
-                    } else {
-                        Text(
-                            text = "Nie udało się załadować mapy",
-                            color = Color(0xFF757575)
-                        )
-                    }
-                }
+            itemsIndexed(routeResult.defaultPath) { index, point ->
+                StopItem(
+                    destinationPoint = point,
+                    isFirst = index == 0,
+                    isLast = index == routeResult.defaultPath.size - 1,
+                    timeFormatter = timeFormatter
+                )
             }
 
-            // Route Summary Card
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceAround
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Całkowity czas",
-                            fontSize = 12.sp,
-                            color = Color(0xFF757575)
-                        )
-                        val totalDuration = Duration.between(
-                            destinationPoints.first().arrivalTime,
-                            destinationPoints.last().arrivalTime
-                        )
-                        val hours = totalDuration.toHours()
-                        val minutes = totalDuration.toMinutes() % 60
-                        Text(
-                            text = if (hours > 0) "${hours}h ${minutes}min" else "${minutes}min",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1976D2)
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Przystanki",
-                            fontSize = 12.sp,
-                            color = Color(0xFF757575)
-                        )
-                        Text(
-                            text = "${destinationPoints.size}",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1976D2)
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Przyjazd",
-                            fontSize = 12.sp,
-                            color = Color(0xFF757575)
-                        )
-                        Text(
-                            text = destinationPoints.last().arrivalTime
-                                .atZone(java.time.ZoneId.systemDefault())
-                                .format(timeFormatter),
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1976D2)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Stops List
-            Text(
-                text = "Przystanki po drodze",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp),
-                color = Color(0xFF212121)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                itemsIndexed(destinationPoints) { index, point ->
-                    StopItem(
-                        destinationPoint = point,
-                        isFirst = index == 0,
-                        isLast = index == destinationPoints.size - 1,
-                        timeFormatter = timeFormatter
-                    )
-                }
-
-                // Add bottom spacing
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+            // Add bottom spacing
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
+}
+
+private suspend fun buildRoute(points: List<LocationPoint>, locationHelper: LocationHelper): List<LocationPoint> {
+    val allRoutePoints = mutableListOf<LocationPoint>()
+    if (points.size < 2) return emptyList()
+
+    for (i in 0 until points.size - 1) {
+        val start = points[i]
+        val end = points[i + 1]
+        val segmentPoints = locationHelper.getRoutePoints(start, end)
+        if (segmentPoints != null && segmentPoints.isNotEmpty()) {
+            if (allRoutePoints.isEmpty()) {
+                allRoutePoints.addAll(segmentPoints)
+            } else {
+                allRoutePoints.addAll(segmentPoints.drop(1))
+            }
+        } else {
+            if (allRoutePoints.isEmpty()) allRoutePoints.add(start)
+            allRoutePoints.add(end)
+        }
+    }
+    return allRoutePoints
 }
 
 @Composable
@@ -381,6 +348,13 @@ fun StopItem(
                         text = "Punkt docelowy",
                         fontSize = 12.sp,
                         color = Color(0xFFF44336)
+                    )
+                } else if (destinationPoint.routeNumber != null) {
+                    Text(
+                        text = "Linia ${destinationPoint.routeNumber}",
+                        fontSize = 12.sp,
+                        color = Color(0xFF1976D2),
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }

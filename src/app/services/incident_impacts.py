@@ -28,8 +28,12 @@ class IncidentDelayConfig:
 class IncidentImpactService:
     """Poll incidents and update transport graphs according to delay factors."""
 
+    # Use a very large value instead of infinity for blocked routes
+    # This effectively makes the route unusable while remaining JSON-compliant
+    BLOCKED_ROUTE_WEIGHT = 1e15
+    
     INCIDENT_DELAY_MAPPING: dict[str, IncidentDelayConfig] = {
-        "Crush": IncidentDelayConfig(multiplier=float("inf"), approval_threshold=0.0),
+        "Crush": IncidentDelayConfig(multiplier=BLOCKED_ROUTE_WEIGHT, approval_threshold=0.0),
         "Traffic": IncidentDelayConfig(multiplier=1.5, approval_threshold=50.0),
     }
 

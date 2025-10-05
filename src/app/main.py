@@ -65,10 +65,15 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
 
     settings = get_settings()
+    
+    # Use ORJSONResponse which natively handles infinity values in JSON
+    from fastapi.responses import ORJSONResponse
+    
     app = FastAPI(
         title=settings.app_name,
         version=settings.app_version,
         lifespan=lifespan,
+        default_response_class=ORJSONResponse,
     )
 
     app.add_middleware(

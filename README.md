@@ -37,7 +37,7 @@ Submit a new incident report.
   ```
 - **Valid Categories and Impact**
   - `Traffic` – Applies a 1.5× edge weight multiplier; requires combined `reporter_social_score` ≥ 50.0 to activate (unless `approved: true`).
-  - `Crush` – Applies an infinite edge weight multiplier (effectively blocks the route); activates immediately regardless of social score.
+  - `Crush` – Applies an extremely large edge weight multiplier (effectively blocks the route); activates immediately regardless of social score.
   - Other category values are accepted but do not influence transport graphs.
 - **Notes**
   - Unapproved incidents influence transport edges only when the combined

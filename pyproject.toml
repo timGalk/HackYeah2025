@@ -18,6 +18,7 @@ dependencies = [
     "pandas>=2.2,<3",
     "httpx>=0.28.1",
     "python-multipart>=0.0.20",
+    "orjson>=3.10",
 ]
 
 [tool.setuptools]

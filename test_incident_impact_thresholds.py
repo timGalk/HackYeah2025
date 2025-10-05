@@ -224,15 +224,15 @@ def scenario_threshold_multiplier() -> None:
 
 
 def scenario_infinite_multiplier() -> None:
-    """Validate that a "Crush" incident enforces an infinite multiplier immediately."""
+    """Validate that a "Crush" incident enforces a very large multiplier immediately."""
 
-    print("\n🧪 Scenario 2 – Immediate Crush multiplier (infinite)")
+    print("\n🧪 Scenario 2 – Immediate Crush multiplier (blocked route)")
     _purge_incidents()
 
     # Ensure the previous multiplier has been reverted before continuing.
     initial_edge = _wait_for_condition(
-        predicate=lambda edge: math.isfinite(edge["weight"]),
-        description="Edge weight reverted to finite baseline",
+        predicate=lambda edge: edge["weight"] is not None and edge["weight"] < 1e10,
+        description="Edge weight reverted to normal baseline",
     )
     baseline_weight = initial_edge["weight"]
 
@@ -249,19 +249,19 @@ def scenario_infinite_multiplier() -> None:
     print("Submitting crush incident (should apply immediately)...")
     _report_incident(crush_incident)
 
-    def _infinite(edge: Dict[str, Any]) -> bool:
+    def _blocked(edge: Dict[str, Any]) -> bool:
         weight = edge["weight"]
-        return isinstance(weight, (float, int)) and math.isinf(weight)
+        # Check for very large weight (> 1e12 indicates a blocked route)
+        return isinstance(weight, (float, int)) and weight > 1e12
 
     updated_edge = _wait_for_condition(
-        predicate=_infinite,
-        description="Edge weight increased to Infinity for crush incident",
+        predicate=_blocked,
+        description="Edge weight increased to blocked state for crush incident",
     )
 
     print(
         "Edge weight after crush incident: "
-        f"{'∞' if math.isinf(updated_edge['weight']) else updated_edge['weight']}"
-        f" (baseline was {baseline_weight:.2f})"
+        f"{updated_edge['weight']:.2e} (baseline was {baseline_weight:.2f})"
     )
 
 

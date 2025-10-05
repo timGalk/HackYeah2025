@@ -9,11 +9,24 @@ from dataclasses import dataclass
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from threading import Lock
-from typing import Any, Iterable
+from typing import Any, Iterable, Sequence
 
 import gtfs_kit as gk
 import networkx as nx
 import pandas as pd
+
+from app.core.node_mapping import get_node_name
+
+
+WEIGHT_EPSILON = 1e-6
+EDGE_METADATA_EXCLUDE = {
+    "weight",
+    "default_weight",
+    "mode",
+    "distance_km",
+    "speed_kmh",
+    "connector",
+}
 
 
 class MultimodalDiGraph(nx.MultiDiGraph):
@@ -218,6 +231,202 @@ class TransportGraphService:
         )
         return edge_data
 
+    def plan_route_with_incidents(
+        self,
+        *,
+        mode: str,
+        source: str,
+        target: str,
+    ) -> dict[str, Any]:
+        """Return the baseline path and an alternative when incidents slow edges."""
+
+        graph = self.get_graph(mode)
+        if source not in graph:
+            msg = f"Source node '{source}' does not exist in mode '{mode}'."
+            raise ValueError(msg)
+        if target not in graph:
+            msg = f"Target node '{target}' does not exist in mode '{mode}'."
+            raise ValueError(msg)
+
+        try:
+            default_nodes = nx.shortest_path(graph, source, target, weight="default_weight")
+        except nx.NetworkXNoPath as exc:
+            msg = f"No path exists between '{source}' and '{target}' in mode '{mode}'."
+            raise ValueError(msg) from exc
+
+        default_segments = self._build_route_segments(graph, default_nodes)
+        incident_detected = any(segment["impacted"] for segment in default_segments)
+
+        alternative_nodes: Sequence[str] | None = None
+        alternative_segments: list[dict[str, Any]] | None = None
+        if incident_detected:
+            clean_graph = self._graph_without_impacted_edges(graph)
+            try:
+                alternative_nodes = nx.shortest_path(
+                    clean_graph,
+                    source,
+                    target,
+                    weight="default_weight",
+                )
+            except nx.NetworkXNoPath:
+                alternative_nodes = None
+
+            if alternative_nodes and list(alternative_nodes) != list(default_nodes):
+                alternative_segments = self._build_route_segments(graph, alternative_nodes)
+
+        default_path_payload = self._shape_route_payload(default_nodes, default_segments)
+        alternative_path_payload = (
+            self._shape_route_payload(alternative_nodes, alternative_segments)
+            if alternative_nodes and alternative_segments
+            else None
+        )
+
+        message: str | None = None
+        if incident_detected and alternative_path_payload is None:
+            message = "Incidents detected on the default path; no unaffected alternative was found."
+        elif incident_detected:
+            message = "Incidents detected on the default path; alternative route suggested."
+
+        return {
+            "incident_detected": incident_detected,
+            "message": message,
+            "default_path": default_path_payload,
+            "suggested_path": alternative_path_payload,
+        }
+
+    def _build_route_segments(
+        self,
+        graph: MultimodalDiGraph,
+        nodes: Sequence[str],
+    ) -> list[dict[str, Any]]:
+        """Resolve edge details for a sequence of nodes."""
+
+        segments: list[dict[str, Any]] = []
+        for source, target in zip(nodes, nodes[1:]):
+            key, data = self._resolve_edge_for_path(graph, source, target)
+            default_weight = self._edge_default_weight(data)
+            current_weight = self._edge_current_weight(data)
+            impacted = self._is_edge_impacted(data)
+            metadata = self._extract_edge_metadata(data)
+
+            segment = {
+                "source": source,
+                "target": target,
+                "key": key,
+                "mode": data.get("mode", graph.graph.get("mode")),
+                "default_weight": default_weight,
+                "current_weight": current_weight,
+                "impacted": impacted,
+                "distance_km": data.get("distance_km"),
+                "speed_kmh": data.get("speed_kmh"),
+                "connector": data.get("connector"),
+                "metadata": metadata or None,
+            }
+            segments.append(segment)
+        return segments
+
+    def _shape_route_payload(
+        self,
+        nodes: Sequence[str] | None,
+        segments: list[dict[str, Any]] | None,
+    ) -> dict[str, Any]:
+        """Aggregate nodes and segments into a response-friendly structure."""
+
+        if nodes is None or segments is None:
+            msg = "Route payload requires both nodes and segments."
+            raise ValueError(msg)
+
+        total_default = sum(segment["default_weight"] for segment in segments)
+        total_current = sum(segment["current_weight"] for segment in segments)
+        return {
+            "nodes": list(nodes),
+            "segments": segments,
+            "total_default_weight": total_default,
+            "total_current_weight": total_current,
+        }
+
+    def _graph_without_impacted_edges(
+        self,
+        graph: MultimodalDiGraph,
+    ) -> MultimodalDiGraph:
+        """Return a copy of the graph without edges currently impacted by incidents."""
+
+        clean_graph = graph.copy()
+        impacted_edges = [
+            (source, target, key)
+            for source, target, key, data in graph.edges(keys=True, data=True)
+            if self._is_edge_impacted(data)
+        ]
+        if impacted_edges:
+            clean_graph.remove_edges_from(impacted_edges)
+        return clean_graph
+
+    def _resolve_edge_for_path(
+        self,
+        graph: MultimodalDiGraph,
+        source: str,
+        target: str,
+    ) -> tuple[str | int, dict[str, Any]]:
+        """Return the edge data representing the default traversal between two nodes."""
+
+        edges = graph.get_edge_data(source, target)
+        if not edges:
+            msg = f"No edge found between '{source}' and '{target}'."
+            raise ValueError(msg)
+
+        best_key: str | int | None = None
+        best_weight = float("inf")
+        for key, data in edges.items():
+            default_weight = self._edge_default_weight(data)
+            if default_weight < best_weight:
+                best_key = key
+                best_weight = default_weight
+
+        if best_key is None:
+            msg = f"Unable to determine default edge for '{source}' -> '{target}'."
+            raise ValueError(msg)
+
+        return best_key, edges[best_key]
+
+    @staticmethod
+    def _edge_default_weight(data: dict[str, Any]) -> float:
+        """Return the baseline weight stored on an edge."""
+
+        default_weight = data.get("default_weight")
+        if default_weight is None:
+            default_weight = data.get("weight")
+        if default_weight is None:
+            msg = "Edge is missing weight metadata."
+            raise ValueError(msg)
+        return float(default_weight)
+
+    def _edge_current_weight(self, data: dict[str, Any]) -> float:
+        """Return the current effective weight for an edge."""
+
+        weight = data.get("weight")
+        if weight is None:
+            return self._edge_default_weight(data)
+        return float(weight)
+
+    def _is_edge_impacted(self, data: dict[str, Any]) -> bool:
+        """Determine whether the edge weight deviates from its default weight."""
+
+        try:
+            default_weight = self._edge_default_weight(data)
+            current_weight = self._edge_current_weight(data)
+        except ValueError:
+            return False
+        return current_weight - default_weight > WEIGHT_EPSILON
+
+    def _extract_edge_metadata(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Return edge metadata excluding standard transport attributes."""
+
+        return {
+            key: value
+            for key, value in data.items()
+            if key not in EDGE_METADATA_EXCLUDE
+        }
+
     def _closest_transit_edge_match(
         self,
         *,
@@ -269,10 +478,18 @@ class TransportGraphService:
             raise ValueError(msg)
 
         stops_df = feed.stops[["stop_id", "stop_lat", "stop_lon"]].copy()
-        nodes_payload = {
-            row.stop_id: {"latitude": float(row.stop_lat), "longitude": float(row.stop_lon)}
-            for row in stops_df.itertuples(index=False)
-        }
+        nodes_payload = {}
+        for row in stops_df.itertuples(index=False):
+            stop_id = str(row.stop_id)
+            node_attrs = {
+                "latitude": float(row.stop_lat),
+                "longitude": float(row.stop_lon),
+            }
+            # Add stop name if available in mapping
+            stop_name = get_node_name(stop_id)
+            if stop_name:
+                node_attrs["stop_name"] = stop_name
+            nodes_payload[stop_id] = node_attrs
 
         base_graphs = self._build_transit_graphs(feed, nodes_payload)
         walking_graph = self._build_walking_graph(nodes_payload, base_graphs)
@@ -333,6 +550,7 @@ class TransportGraphService:
                     row.next_stop_id,
                     key=row.trip_id,
                     weight=duration,
+                    default_weight=duration,
                     mode=label,
                     trip_id=row.trip_id,
                     route_id=row.route_id,
@@ -372,6 +590,7 @@ class TransportGraphService:
                     "distance_km": distance_km,
                     "speed_kmh": self._walker_speed_kmh,
                     "weight": travel_seconds,
+                    "default_weight": travel_seconds,
                 }
 
                 if (
@@ -439,6 +658,7 @@ class TransportGraphService:
                 "distance_km": best_distance,
                 "speed_kmh": speed_kmh,
                 "weight": travel_seconds,
+                "default_weight": travel_seconds,
                 "connector": True,
             }
             graph.add_edge(source, target, key=f"{mode}-connector-{source}-{target}", **payload)
@@ -499,6 +719,10 @@ class TransportGraphService:
                     speed = self._walker_speed_kmh
                 updated_payload["speed_kmh"] = speed
                 updated_payload["weight"] = self._travel_time_seconds(distance_km, speed)
+                updated_payload["default_weight"] = updated_payload["weight"]
+
+            if "default_weight" not in updated_payload:
+                updated_payload["default_weight"] = updated_payload.get("weight")
 
             bike_graph.add_edge(source, target, key=key, **updated_payload)
 
@@ -584,11 +808,12 @@ class TransportGraphService:
                 "latitude": attrs.get("latitude"),
                 "longitude": attrs.get("longitude"),
                 "bike_accessible": attrs.get("bike_accessible"),
+                "stop_name": attrs.get("stop_name"),
             }
             metadata = {
                 key: value
                 for key, value in attrs.items()
-                if key not in {"latitude", "longitude", "bike_accessible"}
+                if key not in {"latitude", "longitude", "bike_accessible", "stop_name"}
             }
             if metadata:
                 node_entry["metadata"] = metadata

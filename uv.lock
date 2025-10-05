@@ -413,6 +413,7 @@ name = "hackyeah2025"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "elasticsearch", extra = ["async"] },
     { name = "fastapi" },
     { name = "gtfs-kit" },
@@ -427,6 +428,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.12.15" },
     { name = "elasticsearch", extras = ["async"], specifier = ">=8.12,<9" },
     { name = "fastapi", specifier = ">=0.110,<0.111" },
     { name = "gtfs-kit", specifier = ">=6.0,<7" },

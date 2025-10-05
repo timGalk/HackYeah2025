@@ -132,6 +132,9 @@ class GraphNode(BaseModel):
     bike_accessible: bool | None = Field(
         default=None, description="Flag indicating whether bikes can access this node."
     )
+    stop_name: str | None = Field(
+        default=None, description="The stop or street name associated with this node."
+    )
     metadata: Dict[str, Any] | None = Field(
         default=None, description="Additional attributes attached to the node."
     )
@@ -175,3 +178,67 @@ class GraphSnapshotResponse(BaseModel):
     """Response containing serialized transport graphs for visualization."""
 
     graphs: Dict[str, GraphPayload]
+
+
+class RouteSegment(BaseModel):
+    """Single segment along a transport path."""
+
+    source: str = Field(..., description="Source node identifier.")
+    target: str = Field(..., description="Target node identifier.")
+    key: str | int = Field(..., description="Unique edge key in the multigraph.")
+    mode: str | None = Field(
+        default=None, description="Transport mode assigned to the traversed edge."
+    )
+    default_weight: float = Field(
+        ..., description="Baseline traversal time for this edge expressed in seconds."
+    )
+    current_weight: float = Field(
+        ..., description="Current traversal time considering incident impacts."
+    )
+    impacted: bool = Field(
+        ..., description="True when the edge is slower than its default weight."
+    )
+    distance_km: float | None = Field(
+        default=None, description="Physical distance covered by the edge in kilometres."
+    )
+    speed_kmh: float | None = Field(
+        default=None, description="Traversal speed associated with the edge, if known."
+    )
+    connector: bool | None = Field(
+        default=None, description="Indicates whether the edge was injected for connectivity."
+    )
+    metadata: Dict[str, Any] | None = Field(
+        default=None, description="Additional attributes retained from the transport graph."
+    )
+
+
+class RoutePath(BaseModel):
+    """Collection of segments forming a full transport path."""
+
+    nodes: list[str] = Field(..., description="Ordered node identifiers along the path.")
+    segments: list[RouteSegment] = Field(
+        ..., description="Segments composing the path in traversal order."
+    )
+    total_default_weight: float = Field(
+        ..., description="Total baseline travel time for the path in seconds."
+    )
+    total_current_weight: float = Field(
+        ..., description="Total current travel time factoring incident impacts."
+    )
+
+
+class RoutePlanResponse(BaseModel):
+    """Response returned by the incident-aware route planning endpoint."""
+
+    incident_detected: bool = Field(
+        ..., description="True when the default path contains incident-impacted edges."
+    )
+    message: str | None = Field(
+        default=None,
+        description="Optional warning explaining incident influence or fallback behaviour.",
+    )
+    default_path: RoutePath = Field(..., description="Baseline path assembled from default weights.")
+    suggested_path: RoutePath | None = Field(
+        default=None,
+        description="Alternative path avoiding impacted edges when available.",
+    )

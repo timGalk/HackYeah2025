@@ -47,6 +47,13 @@ interface IncidentApi {
 
     @GET("api/v1/incidents/latest")
     suspend fun getLatestIncidents(@Query("limit") limit: Int = 10): IncidentsListResponse
+
+    // New: filter by multiple coordinates and distance
+    @GET("api/v1/incidents")
+    suspend fun getIncidentsByCoordinates(
+        @Query("coordinates") coordinates: List<String>,
+        @Query("max_distance_km") maxDistanceKm: Double
+    ): IncidentsListResponse
 }
 
 object IncidentService {
@@ -106,6 +113,21 @@ object IncidentService {
             Result.success(resp.incidents)
         } catch (e: Exception) {
             println("Error fetching latest incidents: ${e.message}")
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchIncidentsByCoordinates(
+        coordinates: List<Pair<Double, Double>>,
+        maxDistanceKm: Double = 1.0
+    ): Result<List<IncidentItem>> {
+        return try {
+            val coordParams = coordinates.map { (lat, lon) -> "${lat},${lon}" }
+            val resp = api.getIncidentsByCoordinates(coordParams, maxDistanceKm)
+            Result.success(resp.incidents)
+        } catch (e: Exception) {
+            println("Error fetching incidents by coordinates: ${e.message}")
             e.printStackTrace()
             Result.failure(e)
         }

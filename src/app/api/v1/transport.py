@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    Query,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import HTMLResponse
 
 from app.api.dependencies import get_transport_graph_service
@@ -17,6 +25,7 @@ from app.schemas.transport import (
     EdgeUpdatePayload,
     EdgeUpdateResponse,
     GraphSnapshotResponse,
+    RoutePlanResponse,
 )
 from app.services.transport import TransportGraphService
 
@@ -334,6 +343,29 @@ async def get_transport_graphs(
     except KeyError as exc:  # pragma: no cover - maps to HTTP error response
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return GraphSnapshotResponse(graphs=snapshot)
+
+
+@router.get(
+    "/routes",
+    response_model=RoutePlanResponse,
+    summary="Plan route with incident awareness",
+)
+async def plan_incident_aware_route(
+    mode: str = Query(..., min_length=1, description="Transport mode to traverse."),
+    source: str = Query(..., min_length=1, description="Identifier of the starting node."),
+    target: str = Query(..., min_length=1, description="Identifier of the destination node."),
+    service: TransportGraphService = Depends(get_transport_graph_service),
+) -> RoutePlanResponse:
+    """Return the default route and warn when incidents require an alternative."""
+
+    try:
+        payload = service.plan_route_with_incidents(mode=mode, source=source, target=target)
+    except KeyError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return RoutePlanResponse.model_validate(payload)
 
 
 @router.patch(

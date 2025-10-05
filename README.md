@@ -187,6 +187,93 @@ List transport graph modes that were constructed at application startup.
   }
   ```
 
+### GET /api/v1/transport/routes?mode=<mode>&source=<source>&target=<target>
+Plan a route within a transport mode and flag segments slowed down by incidents. When
+the default path crosses impacted edges the response proposes an alternative route that
+avoids them, if possible.
+
+- **Query Parameters**
+  - `mode` – Required transport mode label (e.g. `bus`).
+  - `source` – Required identifier of the starting node.
+  - `target` – Required identifier of the destination node.
+- **Success Response** `200 OK`
+  ```json
+  {
+    "incident_detected": true,
+    "message": "Incidents detected on the default path; alternative route suggested.",
+    "default_path": {
+      "nodes": ["stop_a", "stop_b", "stop_c"],
+      "segments": [
+        {
+          "source": "stop_a",
+          "target": "stop_b",
+          "key": "trip-101",
+          "mode": "bus",
+          "default_weight": 120.0,
+          "current_weight": 320.0,
+          "impacted": true,
+          "distance_km": 1.5,
+          "speed_kmh": 17.0,
+          "connector": null,
+          "metadata": {
+            "route_id": "R1"
+          }
+        },
+        {
+          "source": "stop_b",
+          "target": "stop_c",
+          "key": "trip-102",
+          "mode": "bus",
+          "default_weight": 110.0,
+          "current_weight": 110.0,
+          "impacted": false,
+          "distance_km": 1.3,
+          "speed_kmh": 20.0,
+          "connector": null,
+          "metadata": null
+        }
+      ],
+      "total_default_weight": 230.0,
+      "total_current_weight": 430.0
+    },
+    "suggested_path": {
+      "nodes": ["stop_a", "stop_d", "stop_c"],
+      "segments": [
+        {
+          "source": "stop_a",
+          "target": "stop_d",
+          "key": "trip-201",
+          "mode": "bus",
+          "default_weight": 140.0,
+          "current_weight": 140.0,
+          "impacted": false,
+          "distance_km": 1.6,
+          "speed_kmh": 21.0,
+          "connector": null,
+          "metadata": {
+            "route_id": "R2"
+          }
+        },
+        {
+          "source": "stop_d",
+          "target": "stop_c",
+          "key": "trip-202",
+          "mode": "bus",
+          "default_weight": 130.0,
+          "current_weight": 130.0,
+          "impacted": false,
+          "distance_km": 1.4,
+          "speed_kmh": 22.0,
+          "connector": null,
+          "metadata": null
+        }
+      ],
+      "total_default_weight": 270.0,
+      "total_current_weight": 270.0
+    }
+  }
+  ```
+
 ### PATCH /api/v1/transport/graphs/{mode}/edges/{source}/{target}
 Adjust the weight or traversal speed of an edge in a transport graph. When a speed is
 provided the service recalculates the weight using stored distance metadata.

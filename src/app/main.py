@@ -18,6 +18,7 @@ from app.core.elasticsearch import (
     create_elasticsearch_client,
     ensure_index,
 )
+from app.services.incident_impacts import IncidentImpactService
 from app.services.transport import BikeParkingLocation, TransportGraphService
 
 
@@ -44,9 +45,18 @@ async def lifespan(app: FastAPI):
         transport_service.load_bike_parkings(bike_parkings)
 
     app.state.transport_service = transport_service
+
+    incident_impact_service = IncidentImpactService(
+        app=app,
+        transport_service=transport_service,
+        interval_seconds=settings.incident_poll_interval_seconds,
+    )
+    incident_impact_service.start()
+    app.state.incident_impact_service = incident_impact_service
     try:
         yield
     finally:
+        await incident_impact_service.stop()
         await close_elasticsearch_client(client)
 
 

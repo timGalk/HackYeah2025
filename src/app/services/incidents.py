@@ -1,7 +1,7 @@
 """Business logic for incident workflows."""
 
 from datetime import datetime
-from typing import List
+from typing import Any, Sequence
 
 from app.repositories.incidents import IncidentRepository
 from app.schemas.incidents import (
@@ -52,7 +52,7 @@ class IncidentService:
         incidents = await self._repository.get_all_incidents()
         return IncidentListResponse(incidents=self._to_models(incidents))
 
-    def _to_models(self, payload: List[dict]) -> list[IncidentRead]:
+    def _to_models(self, payload: Sequence[dict[str, Any]]) -> list[IncidentRead]:
         """Convert raw repository documents into typed models."""
 
         return [IncidentRead.model_validate(item) for item in payload]

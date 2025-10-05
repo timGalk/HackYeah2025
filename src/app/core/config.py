@@ -34,6 +34,9 @@ class Settings:
     bike_parkings_path: str | None = field(
         default_factory=lambda: os.getenv("BIKE_PARKINGS_PATH")
     )
+    incident_poll_interval_seconds: float = field(
+        default_factory=lambda: float(os.getenv("INCIDENT_POLL_INTERVAL_SECONDS", "60"))
+    )
 
     def elasticsearch_hosts(self) -> list[str]:
         """Return the configured Elasticsearch hosts list for the async client."""

@@ -154,6 +154,7 @@ Environment variables can adjust runtime behaviour:
 - `BIKE_SPEED_KMH` – Average bike speed when parkings are nearby (default `20.0`).
 - `BIKE_ACCESS_RADIUS_M` – Radius in metres to flag a stop as bike-accessible (default `150`).
 - `BIKE_PARKINGS_PATH` – Optional JSON/GeoJSON file describing bike parking locations.
+- `INCIDENT_POLL_INTERVAL_SECONDS` – Interval for polling incidents to update transport graphs (default `60`).
 
 ## Kibana Access
 

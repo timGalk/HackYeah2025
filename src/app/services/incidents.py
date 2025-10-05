@@ -68,6 +68,19 @@ class IncidentService:
 
         return await self._repository.unapprove_incident(incident_id)
 
+    async def delete_incidents_all(self) -> int:
+        """Delete every incident document. Returns the count of removed records."""
+
+        return await self._repository.delete_incidents_all()
+
+    async def delete_incidents_in_range(self, *, start: datetime, end: datetime) -> int:
+        """Delete incidents within the inclusive time interval. Returns deleted count."""
+
+        if end < start:
+            msg = "Parameter 'end' must be greater than or equal to 'start'."
+            raise ValueError(msg)
+        return await self._repository.delete_incidents_in_range(start=start, end=end)
+
     def _to_models(self, payload: Sequence[dict[str, Any]]) -> list[IncidentRead]:
         """Convert raw repository documents into typed models."""
 

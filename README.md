@@ -161,6 +161,16 @@ approved are treated as no-ops.
 Revoke approval for the referenced incident and redirect back to the admin panel. If the
 incident was already unapproved, the request is a no-op.
 
+### POST /admin/incidents/purge
+Remove incidents either across the entire index or within a supplied time range. When
+`start` and `end` fields are supplied (ISO8601), only incidents within that interval are
+deleted; otherwise the entire index is cleared.
+
+### DELETE /admin/incidents
+Programmatic equivalent of the purge form. Accepts an optional JSON body with `start`
+and `end` properties (`ISO8601` strings). When omitted, all incidents are deleted. The
+response contains the number of documents removed and the applied scope.
+
 ## Configuration
 
 Environment variables can adjust runtime behaviour:

@@ -1,16 +1,40 @@
-"""Minimal HTML admin panel for moderating incident approvals."""
+"""Minimal HTML admin panel for moderating incident records."""
 
 from __future__ import annotations
 
 import html
+from datetime import datetime
 from typing import Iterable
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel, Field
 
 from app.api.dependencies import get_incident_service
 from app.schemas.incidents import IncidentRead
 from app.services.incidents import IncidentService
+
+
+class IncidentPurgeRequest(BaseModel):
+    """Payload describing which incident records should be removed."""
+
+    start: datetime | None = Field(
+        default=None,
+        description="Inclusive start of the interval to delete (ISO8601).",
+    )
+    end: datetime | None = Field(
+        default=None,
+        description="Inclusive end of the interval to delete (ISO8601).",
+    )
+
+
+class IncidentPurgeResponse(BaseModel):
+    """Summary response returned after deleting incident records."""
+
+    deleted: int = Field(..., ge=0, description="Number of records removed from the index.")
+    scope: str = Field(..., description="Deletion scope identifier (all or range).")
+    start: datetime | None = Field(default=None)
+    end: datetime | None = Field(default=None)
 
 router = APIRouter(prefix="/admin/incidents", tags=["admin"], include_in_schema=False)
 
@@ -58,6 +82,61 @@ async def revoke_incident(
     return RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
 
 
+@router.post("/purge", name="purge_incidents")
+async def purge_incidents(
+    start: str | None = Form(None),
+    end: str | None = Form(None),
+    clear_all: str | None = Form(None),
+    service: IncidentService = Depends(get_incident_service),
+) -> RedirectResponse:
+    """Delete incidents matching the optional time window and redirect back."""
+
+    status_fragment = "purged"
+    try:
+        if clear_all:
+            deleted = await service.delete_incidents_all()
+            status_fragment = f"purged_{deleted}"
+        elif start and end:
+            start_dt = _parse_datetime(start)
+            end_dt = _parse_datetime(end)
+            deleted = await service.delete_incidents_in_range(start=start_dt, end=end_dt)
+            status_fragment = f"purged_{deleted}"
+        elif start or end:
+            raise ValueError("Both 'start' and 'end' must be provided for ranged purge.")
+        else:
+            raise ValueError("Provide both 'start' and 'end' or use the 'Delete all' button.")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    redirect_target = router.url_path_for("admin_incidents_panel") + f"?status={status_fragment}"
+    return RedirectResponse(url=redirect_target, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@router.delete("", include_in_schema=True, response_model=IncidentPurgeResponse, status_code=status.HTTP_200_OK)
+async def purge_incidents_api(
+    payload: IncidentPurgeRequest = Body(default_factory=IncidentPurgeRequest),
+    service: IncidentService = Depends(get_incident_service),
+) -> IncidentPurgeResponse:
+    """Programmatic endpoint for deleting incidents by range or entirely."""
+
+    if payload.start and payload.end:
+        deleted = await service.delete_incidents_in_range(start=payload.start, end=payload.end)
+        scope = "range"
+    elif payload.start or payload.end:
+        msg = "Both 'start' and 'end' must be provided to delete by range."
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+    else:
+        deleted = await service.delete_incidents_all()
+        scope = "all"
+
+    return IncidentPurgeResponse(
+        deleted=deleted,
+        scope=scope,
+        start=payload.start,
+        end=payload.end,
+    )
+
+
 def _render_panel(
     *,
     incidents: Iterable[IncidentRead],
@@ -80,16 +159,19 @@ def _render_panel(
         f"<title>{html.escape(heading)}</title>"
         "<style>"
         "body{font-family:Arial,sans-serif;margin:2rem;}"
-        "table{border-collapse:collapse;width:100%;}"
+        "table{border-collapse:collapse;width:100%;margin-top:1rem;}"
         "th,td{border:1px solid #ccc;padding:0.5rem;text-align:left;}"
         "th{background:#f0f0f0;}"
         ".actions{display:flex;gap:0.5rem;}"
         ".status{margin-bottom:1rem;color:#064420;font-weight:bold;}"
+        "form.inline{display:flex;gap:0.5rem;align-items:center;}"
+        "fieldset{border:1px solid #ccc;padding:1rem;}legend{font-weight:bold;}"
         "</style>"
         "</head>"
         "<body>"
         f"<h1>{html.escape(heading)}</h1>"
         f"{status_block}"
+        f"{_render_purge_form()}"
         "<table>"
         "<thead><tr>"
         "<th>ID</th><th>Category</th><th>Description</th><th>User</th><th>Score</th><th>Status</th><th>Actions</th>"
@@ -141,4 +223,33 @@ def _format_message(status_token: str | None) -> str | None:
         return "Incident approval revoked."
     if status_token == "not_found":
         return "Incident not found or already in the requested state."
+    if status_token and status_token.startswith("purged_"):
+        count = status_token.split("_", 1)[1]
+        return f"Deleted {count} incident(s)."
     return None
+
+
+def _render_purge_form() -> str:
+    """Render a simple form for purging incidents by time interval."""
+
+    return (
+        "<form class='inline' method='post' action='purge'>"
+        "<fieldset>"
+        "<legend>Delete incidents</legend>"
+        "<label>Start (ISO8601): <input type='datetime-local' name='start'></label>"
+        "<label>End (ISO8601): <input type='datetime-local' name='end'></label>"
+        "<button type='submit'>Delete range</button>"
+        "<button type='submit' name='clear_all' value='1'>Delete all</button>"
+        "</fieldset>"
+        "</form>"
+    )
+
+
+def _parse_datetime(value: str) -> datetime:
+    """Parse ISO8601 datetime strings provided via the admin form."""
+
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError as exc:
+        msg = "Date-time values must be ISO8601 formatted."
+        raise ValueError(msg) from exc

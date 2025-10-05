@@ -100,6 +100,37 @@ class IncidentRepository:
 
         return await self._set_incident_approval(incident_id=incident_id, approved=False)
 
+    async def delete_incidents_all(self) -> int:
+        """Remove every incident document from the index."""
+
+        response = await self._client.delete_by_query(
+            index=self._index_name,
+            body={"query": {"match_all": {}}},
+            conflicts="proceed",
+            refresh=True,
+        )
+        return int(response.get("deleted", 0))
+
+    async def delete_incidents_in_range(self, *, start: datetime, end: datetime) -> int:
+        """Remove incidents whose timestamps fall within the provided interval."""
+
+        response = await self._client.delete_by_query(
+            index=self._index_name,
+            body={
+                "query": {
+                    "range": {
+                        "created_at": {
+                            "gte": start.isoformat(),
+                            "lte": end.isoformat(),
+                        }
+                    }
+                }
+            },
+            conflicts="proceed",
+            refresh=True,
+        )
+        return int(response.get("deleted", 0))
+
     async def _set_incident_approval(self, *, incident_id: str, approved: bool) -> bool:
         """Toggle the approval flag for the given incident document."""
 

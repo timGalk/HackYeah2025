@@ -145,9 +145,6 @@ fun RouteDetailsView(
                         initialZoom = 12.0,
                         enableMyLocation = false,
                         userMarkers = listOfNotNull(defaultLocationPoints.firstOrNull(), defaultLocationPoints.lastOrNull()),
-                        defaultRoutePoints = defaultRoutePoints,
-                        suggestedRoutePoints = suggestedRoutePoints,
-                        incidentPoints = routeResult.incidents,
                         onMapReady = { }
                     )
                 } else {

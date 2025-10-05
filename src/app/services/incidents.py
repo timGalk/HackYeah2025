@@ -11,25 +11,36 @@ from app.schemas.incidents import (
     IncidentListResponse,
     IncidentRead,
 )
+from app.services.transport import TransportGraphService
 
 
 class IncidentService:
     """Coordinate incident ingestion workflows."""
 
-    def __init__(self, repository: IncidentRepository) -> None:
+    def __init__(
+        self,
+        *,
+        repository: IncidentRepository,
+        transport_service: TransportGraphService,
+    ) -> None:
         self._repository = repository
+        self._transport_service = transport_service
 
     async def report_incident(self, payload: IncidentCreate) -> IncidentCreatedResponse:
         """Validate and persist an incident, returning its identifier."""
 
-        document = IncidentDocument(**payload.model_dump())
+        document = self._build_document(payload)
         incident_id = await self._repository.create_incident(document)
         return IncidentCreatedResponse(incident_id=incident_id)
 
-    async def get_recent_incidents(self, limit: int) -> IncidentListResponse:
+    async def get_recent_incidents(
+        self,
+        limit: int,
+        routes: Sequence[str] | None = None,
+    ) -> IncidentListResponse:
         """Return the most recent incidents limited by the requested count."""
 
-        incidents = await self._repository.get_recent_incidents(limit)
+        incidents = await self._repository.get_recent_incidents(limit, routes=routes)
         return IncidentListResponse(incidents=self._to_models(incidents))
 
     async def get_incidents_between(
@@ -37,22 +48,67 @@ class IncidentService:
         *,
         start: datetime,
         end: datetime,
+        routes: Sequence[str] | None = None,
     ) -> IncidentListResponse:
         """Return incidents created within the provided time interval."""
 
         if end < start:
             msg = "Parameter 'end' must be greater than or equal to 'start'."
             raise ValueError(msg)
-        incidents = await self._repository.get_incidents_between(start=start, end=end)
+        incidents = await self._repository.get_incidents_between(
+            start=start,
+            end=end,
+            routes=routes,
+        )
         return IncidentListResponse(incidents=self._to_models(incidents))
 
-    async def get_all_incidents(self) -> IncidentListResponse:
+    async def get_all_incidents(
+        self,
+        routes: Sequence[str] | None = None,
+    ) -> IncidentListResponse:
         """Return all incidents stored in the repository."""
 
-        incidents = await self._repository.get_all_incidents()
+        incidents = await self._repository.get_all_incidents(routes=routes)
         return IncidentListResponse(incidents=self._to_models(incidents))
 
     def _to_models(self, payload: Sequence[dict[str, Any]]) -> list[IncidentRead]:
         """Convert raw repository documents into typed models."""
 
         return [IncidentRead.model_validate(item) for item in payload]
+
+    def _build_document(self, payload: IncidentCreate) -> IncidentDocument:
+        """Augment the incoming payload with edge metadata before persistence."""
+
+        base_data = payload.model_dump()
+        edge = self._resolve_edge_context(latitude=payload.latitude, longitude=payload.longitude)
+
+        if edge is None:
+            return IncidentDocument(**base_data)
+
+        edge_key = edge.get("key")
+        route_id = edge.get("route_id")
+        impacted_routes = [route_id] if isinstance(route_id, str) and route_id else []
+
+        return IncidentDocument(
+            **base_data,
+            edge_mode=edge.get("mode"),
+            edge_source=edge.get("source"),
+            edge_target=edge.get("target"),
+            edge_key=str(edge_key) if edge_key is not None else None,
+            trip_id=edge.get("trip_id"),
+            route_id=route_id,
+            route_short_name=edge.get("route_short_name"),
+            route_long_name=edge.get("route_long_name"),
+            impacted_routes=impacted_routes,
+        )
+
+    def _resolve_edge_context(self, *, latitude: float, longitude: float) -> dict[str, Any] | None:
+        """Lookup the closest transit edge and return its metadata, if any."""
+
+        try:
+            return self._transport_service.get_closest_transit_edge(
+                latitude=latitude,
+                longitude=longitude,
+            )
+        except ValueError:
+            return None

@@ -25,10 +25,11 @@ def get_incident_repository(
 
 def get_incident_service(
     repository: IncidentRepository = Depends(get_incident_repository),
+    transport_service: TransportGraphService = Depends(get_transport_service),
 ) -> IncidentService:
     """Provide an incident service instance per request."""
 
-    return IncidentService(repository=repository)
+    return IncidentService(repository=repository, transport_service=transport_service)
 
 
 def get_transport_graph_service(

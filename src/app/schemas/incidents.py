@@ -24,6 +24,18 @@ class IncidentDocument(IncidentCreate):
     """Data representation persisted into Elasticsearch."""
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    edge_mode: str | None = Field(default=None, description="Transport mode of the impacted edge.")
+    edge_source: str | None = Field(default=None, description="Source node identifier of the impacted edge.")
+    edge_target: str | None = Field(default=None, description="Target node identifier of the impacted edge.")
+    edge_key: str | None = Field(default=None, description="Key of the impacted edge within the transport graph.")
+    trip_id: str | None = Field(default=None, description="Transit trip identifier associated with the impacted edge.")
+    route_id: str | None = Field(default=None, description="GTFS route identifier touched by the incident.")
+    route_short_name: str | None = Field(default=None, description="Short name of the impacted route, if available.")
+    route_long_name: str | None = Field(default=None, description="Long name of the impacted route, if available.")
+    impacted_routes: list[str] = Field(
+        default_factory=list,
+        description="Collection of route identifiers affected by this incident.",
+    )
 
 
 class IncidentCreatedResponse(BaseModel):

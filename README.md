@@ -38,11 +38,47 @@ Submit a new incident report.
 ### GET /api/v1/incidents
 Return all incidents ordered by their creation timestamp.
 
+- **Query Parameters**
+  - `routes` *(optional, repeatable)* – One or more GTFS route identifiers. When provided, only
+    incidents whose impacted routes intersect this set are returned.
+- **Success Response** `200 OK`
+  ```json
+  {
+    "incidents": [
+      {
+        "id": "abc123",
+        "latitude": 52.2297,
+        "longitude": 21.0122,
+        "description": "Road blocked by fallen tree",
+        "category": "infrastructure",
+        "username": "janedoe",
+        "approved": false,
+        "created_at": "2024-01-05T12:14:32.000000",
+        "edge_mode": "tram",
+        "edge_source": "stop_a",
+        "edge_target": "stop_b",
+        "edge_key": "trip-123",
+        "trip_id": "trip-123",
+        "route_id": "T4",
+        "route_short_name": "4",
+        "route_long_name": "Kurdwanów - Bronowice Małe",
+        "impacted_routes": ["T4"]
+      }
+    ]
+  }
+  ```
+
 ### GET /api/v1/incidents/latest?limit=<N>
 Return the `N` most recent incidents (`limit` defaults to 10 and caps at 1000).
 
+- **Query Parameters**
+  - `routes` *(optional, repeatable)* – Restrict the feed to specific GTFS route identifiers.
+
 ### GET /api/v1/incidents/range?start=<ISO8601>&end=<ISO8601>
 Return incidents whose `created_at` falls within the inclusive interval.
+
+- **Query Parameters**
+  - `routes` *(optional, repeatable)* – Restrict the feed to specific GTFS route identifiers.
 
 ### GET /api/v1/transport/modes
 List transport graph modes that were constructed at application startup.

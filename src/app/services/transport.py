@@ -462,6 +462,45 @@ class TransportGraphService:
 
         return best_match
 
+    def get_routes_near_coordinates(
+        self,
+        *,
+        coordinates: list[tuple[float, float]],
+        max_distance_km: float = 1.0,
+    ) -> list[str]:
+        """Find all unique route IDs for transit edges within distance of any coordinate."""
+
+        route_ids: set[str] = set()
+
+        for latitude, longitude in coordinates:
+            for mode, graph in self._graphs.items():
+                if mode in {"walking", "bike"}:
+                    continue
+                for source, target, key in graph.edges(keys=True):
+                    source_attrs = graph.nodes[source]
+                    target_attrs = graph.nodes[target]
+                    if not self._has_coordinates(source_attrs) or not self._has_coordinates(target_attrs):
+                        continue
+
+                    # Check distance to both endpoints and midpoint
+                    distances = [
+                        self._haversine_km(latitude, longitude, source_attrs["latitude"], source_attrs["longitude"]),
+                        self._haversine_km(latitude, longitude, target_attrs["latitude"], target_attrs["longitude"]),
+                        self._haversine_km(
+                            latitude,
+                            longitude,
+                            (source_attrs["latitude"] + target_attrs["latitude"]) / 2,
+                            (source_attrs["longitude"] + target_attrs["longitude"]) / 2,
+                        ),
+                    ]
+
+                    if any(distance <= max_distance_km for distance in distances):
+                        edge_data = graph[source][target][key]
+                        if route_id := edge_data.get("route_id"):
+                            route_ids.add(str(route_id))
+
+        return sorted(route_ids)
+
     # ---------------------------------------------------------------------
     # Internal helpers
     # ---------------------------------------------------------------------

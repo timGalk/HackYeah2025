@@ -37,14 +37,35 @@ async def report_incident(
 )
 async def list_incidents(
     service: IncidentService = Depends(get_incident_service),
-    routes: list[str] | None = Query(
+    coordinates: list[str] | None = Query(
         default=None,
-        description="Filter incidents to the provided GTFS route identifiers.",
+        description="Filter incidents to routes near the provided coordinates (format: 'lat,lng').",
+    ),
+    max_distance_km: float = Query(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Maximum distance in kilometers from coordinates to consider routes.",
     ),
 ) -> IncidentListResponse:
     """Return all incidents stored in the system."""
 
-    return await service.get_all_incidents(routes=routes)
+    # Parse coordinates from strings to tuples
+    parsed_coordinates = None
+    if coordinates:
+        try:
+            parsed_coordinates = [
+                tuple(float(coord.strip()) for coord in coord_str.split(","))
+                for coord_str in coordinates
+                if coord_str.strip()
+            ]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid coordinate format. Expected 'lat,lng' but got: {coordinates}. Error: {str(e)}",
+            ) from e
+
+    return await service.get_all_incidents(coordinates=parsed_coordinates, max_distance_km=max_distance_km)
 
 
 @router.get(
@@ -54,15 +75,36 @@ async def list_incidents(
 )
 async def latest_incidents(
     limit: int = Query(10, gt=0, le=1000, description="Maximum number of incidents to return."),
-    routes: list[str] | None = Query(
+    coordinates: list[str] | None = Query(
         default=None,
-        description="Filter incidents to the provided GTFS route identifiers.",
+        description="Filter incidents to routes near the provided coordinates (format: 'lat,lng').",
+    ),
+    max_distance_km: float = Query(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Maximum distance in kilometers from coordinates to consider routes.",
     ),
     service: IncidentService = Depends(get_incident_service),
 ) -> IncidentListResponse:
     """Return the last N incidents ordered by creation time descending."""
 
-    return await service.get_recent_incidents(limit, routes=routes)
+    # Parse coordinates from strings to tuples
+    parsed_coordinates = None
+    if coordinates:
+        try:
+            parsed_coordinates = [
+                tuple(float(coord.strip()) for coord in coord_str.split(","))
+                for coord_str in coordinates
+                if coord_str.strip()
+            ]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid coordinate format. Expected 'lat,lng' but got: {coordinates}. Error: {str(e)}",
+            ) from e
+
+    return await service.get_recent_incidents(limit, coordinates=parsed_coordinates, max_distance_km=max_distance_km)
 
 
 @router.get(
@@ -73,9 +115,15 @@ async def latest_incidents(
 async def incidents_in_range(
     start: datetime = Query(..., description="Start of the interval (inclusive)."),
     end: datetime = Query(..., description="End of the interval (inclusive)."),
-    routes: list[str] | None = Query(
+    coordinates: list[str] | None = Query(
         default=None,
-        description="Filter incidents to the provided GTFS route identifiers.",
+        description="Filter incidents to routes near the provided coordinates (format: 'lat,lng').",
+    ),
+    max_distance_km: float = Query(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Maximum distance in kilometers from coordinates to consider routes.",
     ),
     service: IncidentService = Depends(get_incident_service),
 ) -> IncidentListResponse:
@@ -84,7 +132,28 @@ async def incidents_in_range(
     if end < start:
         msg = "Parameter 'end' must be greater than or equal to 'start'."
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+
+    # Parse coordinates from strings to tuples
+    parsed_coordinates = None
+    if coordinates:
+        try:
+            parsed_coordinates = [
+                tuple(float(coord.strip()) for coord in coord_str.split(","))
+                for coord_str in coordinates
+                if coord_str.strip()
+            ]
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid coordinate format. Expected 'lat,lng' but got: {coordinates}. Error: {str(e)}",
+            ) from e
+
     try:
-        return await service.get_incidents_between(start=start, end=end, routes=routes)
+        return await service.get_incidents_between(
+            start=start,
+            end=end,
+            coordinates=parsed_coordinates,
+            max_distance_km=max_distance_km,
+        )
     except ValueError as exc:  # pragma: no cover - maps to HTTP error response
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

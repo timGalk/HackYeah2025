@@ -49,8 +49,8 @@ Submit a new incident report.
 Return all incidents ordered by their creation timestamp.
 
 - **Query Parameters**
-  - `routes` *(optional, repeatable)* – One or more GTFS route identifiers. When provided, only
-    incidents whose impacted routes intersect this set are returned.
+  - `coordinates` *(optional, repeatable)* – One or more coordinate pairs in 'latitude,longitude' format. When provided, only incidents on routes that pass within 1km of any coordinate are returned.
+  - `max_distance_km` *(optional)* – Maximum distance in kilometers from coordinates to consider routes (default: 1.0, range: 0.1-10.0).
 - **Success Response** `200 OK`
   ```json
   {
@@ -82,13 +82,15 @@ Return all incidents ordered by their creation timestamp.
 Return the `N` most recent incidents (`limit` defaults to 10 and caps at 1000).
 
 - **Query Parameters**
-  - `routes` *(optional, repeatable)* – Restrict the feed to specific GTFS route identifiers.
+  - `coordinates` *(optional, repeatable)* – One or more coordinate pairs in 'latitude,longitude' format. When provided, only incidents on routes that pass within 1km of any coordinate are returned.
+  - `max_distance_km` *(optional)* – Maximum distance in kilometers from coordinates to consider routes (default: 1.0, range: 0.1-10.0).
 
 ### GET /api/v1/incidents/range?start=<ISO8601>&end=<ISO8601>
 Return incidents whose `created_at` falls within the inclusive interval.
 
 - **Query Parameters**
-  - `routes` *(optional, repeatable)* – Restrict the feed to specific GTFS route identifiers.
+  - `coordinates` *(optional, repeatable)* – One or more coordinate pairs in 'latitude,longitude' format. When provided, only incidents on routes that pass within 1km of any coordinate are returned.
+  - `max_distance_km` *(optional)* – Maximum distance in kilometers from coordinates to consider routes (default: 1.0, range: 0.1-10.0).
 
 ### POST /api/v1/facebook-posts/upload
 Upload Facebook posts into Elasticsearch using mock data or a future live scraper.

@@ -40,10 +40,15 @@ class IncidentService:
         self,
         limit: int,
         routes: Sequence[str] | None = None,
+        coordinates: list[tuple[float, float]] | None = None,
+        max_distance_km: float = 1.0,
     ) -> IncidentListResponse:
         """Return the most recent incidents limited by the requested count."""
 
-        incidents = await self._repository.get_recent_incidents(limit, routes=routes)
+        resolved_routes = self._resolve_routes_from_coordinates(
+            routes, coordinates, max_distance_km
+        )
+        incidents = await self._repository.get_recent_incidents(limit, routes=resolved_routes)
         return IncidentListResponse(incidents=self._to_models(incidents))
 
     async def get_incidents_between(
@@ -52,26 +57,36 @@ class IncidentService:
         start: datetime,
         end: datetime,
         routes: Sequence[str] | None = None,
+        coordinates: list[tuple[float, float]] | None = None,
+        max_distance_km: float = 1.0,
     ) -> IncidentListResponse:
         """Return incidents created within the provided time interval."""
 
         if end < start:
             msg = "Parameter 'end' must be greater than or equal to 'start'."
             raise ValueError(msg)
+        resolved_routes = self._resolve_routes_from_coordinates(
+            routes, coordinates, max_distance_km
+        )
         incidents = await self._repository.get_incidents_between(
             start=start,
             end=end,
-            routes=routes,
+            routes=resolved_routes,
         )
         return IncidentListResponse(incidents=self._to_models(incidents))
 
     async def get_all_incidents(
         self,
         routes: Sequence[str] | None = None,
+        coordinates: list[tuple[float, float]] | None = None,
+        max_distance_km: float = 1.0,
     ) -> IncidentListResponse:
         """Return all incidents stored in the repository."""
 
-        incidents = await self._repository.get_all_incidents(routes=routes)
+        resolved_routes = self._resolve_routes_from_coordinates(
+            routes, coordinates, max_distance_km
+        )
+        incidents = await self._repository.get_all_incidents(routes=resolved_routes)
         return IncidentListResponse(incidents=self._to_models(incidents))
 
     async def get_unapproved_incidents(self) -> IncidentListResponse:
@@ -151,6 +166,26 @@ class IncidentService:
             )
         except ValueError:
             return None
+
+    def _resolve_routes_from_coordinates(
+        self,
+        routes: Sequence[str] | None,
+        coordinates: list[tuple[float, float]] | None,
+        max_distance_km: float,
+    ) -> Sequence[str] | None:
+        """Resolve routes from coordinates if provided, otherwise return routes as-is."""
+
+        if coordinates:
+            # Find routes near the coordinates
+            coordinate_routes = self._transport_service.get_routes_near_coordinates(
+                coordinates=coordinates,
+                max_distance_km=max_distance_km,
+            )
+            # If explicit routes were provided, intersect with coordinate routes
+            if routes:
+                return [r for r in coordinate_routes if r in routes]
+            return coordinate_routes
+        return routes
 
     @staticmethod
     def _normalize_optional_string(value: Any) -> str | None:

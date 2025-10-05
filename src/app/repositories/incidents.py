@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
 
-from elasticsearch import AsyncElasticsearch
+from elasticsearch import AsyncElasticsearch, NotFoundError
 from elasticsearch.helpers import async_scan
 
 from app.schemas.incidents import IncidentDocument
@@ -74,6 +74,47 @@ class IncidentRepository:
             "sort": [{"created_at": {"order": "asc"}}],
         }
         return [item async for item in self._scan(body=body)]
+
+    async def get_unapproved_incidents(self) -> list[dict[str, Any]]:
+        """Return incidents that still await manual approval."""
+
+        body = {
+            "query": {
+                "bool": {
+                    "must_not": [
+                        {"term": {"approved": True}},
+                    ]
+                }
+            },
+            "sort": [{"created_at": {"order": "asc"}}],
+        }
+        return [item async for item in self._scan(body=body)]
+
+    async def approve_incident(self, incident_id: str) -> bool:
+        """Mark an incident as approved. Returns False if it was not found."""
+
+        return await self._set_incident_approval(incident_id=incident_id, approved=True)
+
+    async def unapprove_incident(self, incident_id: str) -> bool:
+        """Revoke approval for an incident if it exists."""
+
+        return await self._set_incident_approval(incident_id=incident_id, approved=False)
+
+    async def _set_incident_approval(self, *, incident_id: str, approved: bool) -> bool:
+        """Toggle the approval flag for the given incident document."""
+
+        try:
+            response = await self._client.update(
+                index=self._index_name,
+                id=incident_id,
+                doc={"approved": approved},
+                refresh="wait_for",
+                retry_on_conflict=2,
+            )
+        except NotFoundError:
+            return False
+        result = response.get("result")
+        return result in {"updated", "noop"}
 
     async def _scan(
         self,

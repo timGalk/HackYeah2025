@@ -10,6 +10,7 @@ from typing import Iterable
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.admin import incidents_admin_router
 from app.api.v1.incidents import router as incidents_router
 from app.api.v1.transport import router as transport_router
 from app.core.config import Settings, get_settings
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
 
     app.include_router(incidents_router, prefix="/api/v1")
     app.include_router(transport_router, prefix="/api/v1")
+    app.include_router(incidents_admin_router)
     return app
 
 
